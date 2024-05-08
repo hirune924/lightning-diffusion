@@ -1,0 +1,28 @@
+[project]
+name = "lightning-diffusion"
+version = "0.1.0"
+description = "lightning modules for diffusion models"
+authors = [
+    { name = "hirune924", email = "" }
+]
+dependencies = [
+    "lightning[pytorch-extra]>=2.2.4",
+    "diffusers>=0.27.2",
+    "torch>=2.3.0",
+    "torchvision>=0.18.0",
+    "datasets>=2.19.0",
+    "transformers>=4.40.1",
+]
+readme = "README.md"
+requires-python = ">= 3.11"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = []
+
+[tool.hatch.metadata]
+allow-direct-references = true
