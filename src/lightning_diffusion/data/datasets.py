@@ -75,7 +75,7 @@ class HFDataset(Dataset):
             msg = (f"Caption column `{self.caption_column}` should "
                    "contain either strings or lists of strings.")
             raise ValueError(msg)
-        result = {"img": image, "text": caption}
+        result = {"image": image, "text": caption}
         return self.post_process(result)
     
     def init_post_process(self):
@@ -87,10 +87,13 @@ class HFDataset(Dataset):
 class HFStableDiffusionDataset(HFDataset):
     def init_post_process(self):
         self.transform = v2.Compose([
-            v2.Resize(size=512, interpolation="bilinear"),
+            v2.ToImage(),  # Convert to tensor, only needed if you had a PIL image
+            v2.ToDtype(torch.uint8, scale=True),
+            v2.Resize(size=512, interpolation=v2.InterpolationMode.BILINEAR),
             v2.RandomCrop(size=512),
             v2.RandomHorizontalFlip(),
-            v2.ToTensor(),
+            #v2.ToTensor(),
+            v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(mean=[0.5], std=[0.5]),
         ])
     def post_process(self, input: dict[str: Any]):
@@ -119,17 +122,20 @@ class HFDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
 
+    # OPTIONAL, called only on 1 GPU/machine(for download or tokenize)
     def prepare_data(self):
         if not Path(self.dataset_name).exists():
             hfd.load_dataset(self.dataset_name, cache_dir=self.cache_dir)["train"]
 
+    # OPTIONAL, called for every GPU/machine
     def setup(self, stage: str):
-        self.dataset = self.dataset_cls(
-            self.dataset_name, self.image_column, self.caption_column,
-            self.csv, self.cache_dir,
-            )
-        self.dataset.init_post_process()
+        if stage == "fit":
+            self.dataset = self.dataset_cls(
+                self.dataset_name, self.image_column, self.caption_column,
+                self.csv, self.cache_dir,
+                )
+            self.dataset.init_post_process()
 
     def train_dataloader(self):
         return DataLoader(self.dataset, batch_size=self.batch_size, num_workers=self.num_workers,
-                          shuffle=True, pin_memory=False, drop_last=False, persistent_workers=False)
+                          shuffle=True, pin_memory=False, drop_last=False, persistent_workers=True)

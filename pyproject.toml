@@ -12,6 +12,7 @@ dependencies = [
     "torchvision>=0.18.0",
     "datasets>=2.19.0",
     "transformers>=4.40.1",
+    "accelerate>=0.30.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.11"
