@@ -63,6 +63,8 @@ trainer:
   default_root_dir: lightning_logs
 model:
   base_model: runwayml/stable-diffusion-v1-5
+  train_mode: unet_attn
+  gradient_checkpointing: false
 data:
   dataset_name: reach-vb/pokemon-blip-captions
   image_column: image
