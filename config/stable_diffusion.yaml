@@ -6,8 +6,29 @@ trainer:
   devices: auto
   num_nodes: 1
   precision: bf16-mixed
-  logger: null
-  callbacks: null
+  logger:
+    - class_path: TensorBoardLogger
+      init_args:
+        save_dir: ${trainer.default_root_dir}
+        name: tb_logs
+    - class_path: CSVLogger
+      init_args:
+        save_dir: ${trainer.default_root_dir}
+        name: csv_logs
+  callbacks:
+    - class_path: lightning_diffusion.callback.visualization.VisualizationCallback
+      init_args:
+        prompt:
+          - woman
+          - boy
+          - dog
+          - apple
+    - class_path: LearningRateMonitor
+    - class_path: ModelCheckpoint
+      init_args:
+        dirpath: ${trainer.default_root_dir}/ckpt
+        monitor: 'train_loss'
+        save_last: True
   fast_dev_run: false
   max_epochs: 10
   min_epochs: null
@@ -39,7 +60,7 @@ trainer:
   plugins: null
   sync_batchnorm: false
   reload_dataloaders_every_n_epochs: 0
-  default_root_dir: null
+  default_root_dir: lightning_logs
 model:
   base_model: runwayml/stable-diffusion-v1-5
 data:
@@ -49,6 +70,6 @@ data:
   csv: metadata.csv
   cache_dir: null
   dataset_cls: lightning_diffusion.data.datasets.HFStableDiffusionDataset
-  batch_size: 2
+  batch_size: 32
   num_workers: 4
 ckpt_path: null

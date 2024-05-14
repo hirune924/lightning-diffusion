@@ -1,8 +1,9 @@
 import lightning as L
 import torch
 import torch.nn.functional as F
-from diffusers import AutoencoderKL, DDPMScheduler, UNet2DConditionModel
+from diffusers import AutoencoderKL, DDPMScheduler, UNet2DConditionModel, StableDiffusionPipeline
 from transformers import CLIPTextModel, CLIPTokenizer
+import numpy as np
 
 class StableDiffusionModel(L.LightningModule):
     def __init__(self, base_model: str = "runwayml/stable-diffusion-v1-5"):
@@ -25,6 +26,47 @@ class StableDiffusionModel(L.LightningModule):
         for name, param in self.unet.named_parameters():
             if 'to_k' in name or 'to_v' in name:
                 param.requires_grad = True
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.AdamW(self.parameters(), lr=1e-4, weight_decay=1e-2)
+        return optimizer
+
+    @torch.inference_mode()
+    def forward(self,
+              prompt: list[str],
+              negative_prompt: str | None = None,
+              height: int | None = 512,
+              width: int | None = 512,
+              num_inference_steps: int = 50,
+              ) -> list[np.ndarray]:
+        pipeline = StableDiffusionPipeline(
+            vae=self.vae,
+            text_encoder=self.text_encoder,
+            tokenizer=self.tokenizer,
+            unet=self.unet,
+            scheduler=self.scheduler,
+            feature_extractor=None,
+            safety_checker=None,
+            requires_safety_checker=False
+        )
+        pipeline.set_progress_bar_config(disable=True)
+        images = []
+        for p in prompt:
+            image = pipeline(
+                p,
+                negative_prompt=negative_prompt,
+                num_inference_steps=num_inference_steps,
+                height=height,
+                width=width,
+                output_type="pil"
+                ).images[0]
+
+            images.append(np.array(image))
+
+        del pipeline
+        torch.cuda.empty_cache()
+
+        return images
 
     def training_step(self, batch, batch_idx):
         num_batches = len(batch["image"])
@@ -53,7 +95,4 @@ class StableDiffusionModel(L.LightningModule):
         loss = F.mse_loss(noise_pred.float(), noise.float(), reduction="mean")
         self.log("train_loss", loss)
         return loss
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=1e-4, weight_decay=1e-2)
-        return optimizer
+        
