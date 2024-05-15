@@ -10,7 +10,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import v2
 from typing import Any
 
-class HFDataset(Dataset):
+class HFT2IDataset(Dataset):
     """Dataset for huggingface datasets.
 
     Args:
@@ -84,7 +84,7 @@ class HFDataset(Dataset):
     def post_process(self):
         raise NotImplementedError()
 
-class HFStableDiffusionDataset(HFDataset):
+class HFStableDiffusionDataset(HFT2IDataset):
     def init_post_process(self):
         self.transform = v2.Compose([
             v2.ToImage(),  # Convert to tensor, only needed if you had a PIL image
@@ -104,23 +104,19 @@ class HFDataModule(LightningDataModule):
     def __init__(
         self,
         dataset_name: str,
-        image_column: str = "image",
-        caption_column: str = "text",
-        csv: str = "metadata.csv",
         cache_dir: str | None = None,
-        dataset_cls: type[HFDataset] = HFStableDiffusionDataset,
         batch_size: int= 8,
         num_workers: int=4,
+        dataset_cls: type[HFT2IDataset] = HFStableDiffusionDataset,
+        dataset_args: dict[str, Any] = {"image_column": "image", "caption_column": "text", "csv": "metadata.csv"}
     ):
         super().__init__()
         self.dataset_name = dataset_name
-        self.image_column = image_column
-        self.caption_column = caption_column
-        self.csv = csv
         self.cache_dir = cache_dir
         self.dataset_cls = dataset_cls
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.dataset_args = dataset_args
 
     # OPTIONAL, called only on 1 GPU/machine(for download or tokenize)
     def prepare_data(self):
@@ -131,8 +127,9 @@ class HFDataModule(LightningDataModule):
     def setup(self, stage: str):
         if stage == "fit":
             self.dataset = self.dataset_cls(
-                self.dataset_name, self.image_column, self.caption_column,
-                self.csv, self.cache_dir,
+                dataset=self.dataset_name, 
+                cache_dir=self.cache_dir,
+                **self.dataset_args
                 )
             self.dataset.init_post_process()
 

@@ -65,13 +65,16 @@ model:
   base_model: runwayml/stable-diffusion-v1-5
   train_mode: unet_attn
   gradient_checkpointing: false
+  cfg_prob: 0.1
+  input_perturbation_gamma: 0.0
 data:
   dataset_name: reach-vb/pokemon-blip-captions
-  image_column: image
-  caption_column: text
-  csv: metadata.csv
   cache_dir: null
-  dataset_cls: lightning_diffusion.data.datasets.HFStableDiffusionDataset
   batch_size: 32
   num_workers: 4
+  dataset_cls: lightning_diffusion.data.datasets.HFStableDiffusionDataset
+  dataset_args:
+    image_column: image
+    caption_column: text
+    csv: metadata.csv
 ckpt_path: null
