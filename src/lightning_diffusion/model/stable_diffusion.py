@@ -11,9 +11,11 @@ class StableDiffusionModel(L.LightningModule):
                  base_model: str = "runwayml/stable-diffusion-v1-5", 
                  train_mode: str = "unet_attn",
                  gradient_checkpointing: bool = False,
+                 cfg_prob: float = 0.1,
                  input_perturbation_gamma: float = 0.0):
         super().__init__()
         self.input_perturbation_gamma = input_perturbation_gamma
+        self.cfg_prob = cfg_prob
         self.tokenizer = CLIPTokenizer.from_pretrained(pretrained_model_name_or_path=base_model,
                                                        subfolder="tokenizer")
         self.scheduler = DDPMScheduler.from_pretrained(pretrained_model_name_or_path=base_model,
@@ -98,6 +100,7 @@ class StableDiffusionModel(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         num_batches = len(batch["image"])
+        batch["text"] = ["" if np.random.rand() < self.cfg_prob else t for t in batch["text"]]
         batch["text"] = self.tokenizer(
             batch["text"],
             max_length=self.tokenizer.model_max_length,
