@@ -1,0 +1,11 @@
+class_path: lightning_diffusion.data.datasets.HFDataModule
+init_args:
+  dataset_name: reach-vb/pokemon-blip-captions
+  cache_dir: null
+  batch_size: 32
+  num_workers: 4
+  dataset_cls: lightning_diffusion.data.datasets.HFStableDiffusionDataset
+  dataset_args:
+    image_column: image
+    caption_column: text
+    csv: metadata.csv
