@@ -11,11 +11,13 @@ class StableDiffusionModule(L.LightningModule):
                  base_model: str = "runwayml/stable-diffusion-v1-5", 
                  train_mode: str = "unet_attn",
                  gradient_checkpointing: bool = False,
-                 cfg_prob: float = 0.1,
-                 input_perturbation_gamma: float = 0.0):
+                 cfg_prob: float = 0.0,
+                 input_perturbation_gamma: float = 0.0,
+                 noise_offset: float = 0.0):
         super().__init__()
         self.input_perturbation_gamma = input_perturbation_gamma
         self.cfg_prob = cfg_prob
+        self.noise_offset = noise_offset
         self.tokenizer = CLIPTokenizer.from_pretrained(pretrained_model_name_or_path=base_model,
                                                        subfolder="tokenizer")
         self.scheduler = DDPMScheduler.from_pretrained(pretrained_model_name_or_path=base_model,
@@ -101,7 +103,8 @@ class StableDiffusionModule(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         num_batches = len(batch["image"])
-        batch["text"] = ["" if np.random.rand() < self.cfg_prob else t for t in batch["text"]]
+        if self.cfg_prob > 0:
+            batch["text"] = ["" if np.random.rand() < self.cfg_prob else t for t in batch["text"]]
         batch["text"] = self.tokenizer(
             batch["text"],
             max_length=self.tokenizer.model_max_length,
@@ -115,15 +118,19 @@ class StableDiffusionModule(L.LightningModule):
             0,self.scheduler.config.num_train_timesteps, (num_batches, ),
             dtype=torch.int64, device=self.device)
 
+        if self.noise_offset > 0:
+            noise += self.noise_offset * torch.randn(
+                        (latents.shape[0], latents.shape[1], 1, 1), device=latents.device
+                    )
         if self.input_perturbation_gamma > 0:
-            noise = noise + self.input_perturbation_gamma * torch.randn_like(noise)
-            noisy_latents = self.scheduler.add_noise(latents, noise, timesteps)
+            new_noise = noise + self.input_perturbation_gamma * torch.randn_like(noise)
+            noisy_latents = self.scheduler.add_noise(latents, new_noise, timesteps)
         else:
             noisy_latents = self.scheduler.add_noise(latents, noise, timesteps)
 
-        encoder_hidden_states = self.text_encoder(batch["text"], return_dict=True).last_hidden_state
+        encoder_hidden_states = self.text_encoder(batch["text"], return_dict=False)[0]
 
-        noise_pred = self.unet(
+        model_pred = self.unet(
             noisy_latents,
             timesteps,
             encoder_hidden_states=encoder_hidden_states).sample
@@ -136,7 +143,7 @@ class StableDiffusionModule(L.LightningModule):
             msg = f"Unknown prediction type {self.scheduler.config.prediction_type}"
             raise ValueError(msg)
         
-        loss = F.mse_loss(noise_pred.float(), gt.float(), reduction="mean")
+        loss = F.mse_loss(model_pred.float(), gt.float(), reduction="mean")
         self.log("train_loss", loss)
         return loss
         

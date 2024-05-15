@@ -100,8 +100,9 @@ model:
     base_model: runwayml/stable-diffusion-v1-5
     train_mode: unet_attn
     gradient_checkpointing: false
-    cfg_prob: 0.1
+    cfg_prob: 0.0
     input_perturbation_gamma: 0.0
+    noise_offset: 0.0
 data:
   class_path: lightning_diffusion.data.datasets.HFDataModule
   init_args:
