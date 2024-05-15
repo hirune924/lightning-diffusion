@@ -53,7 +53,8 @@ class StableDiffusionModel(L.LightningModule):
 
         if gradient_checkpointing:
             self.unet.enable_gradient_checkpointing()
-
+            self.text_encoder.gradient_checkpointing_enable()
+        self.train()
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=1e-4, weight_decay=1e-2)
         return optimizer
