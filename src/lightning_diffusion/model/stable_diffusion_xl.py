@@ -76,9 +76,9 @@ class StableDiffusionXLModule(L.LightningModule):
     def forward(self,
               prompt: list[str],
               negative_prompt: str | None = None,
-              height: int | None = 512,
-              width: int | None = 512,
-              num_inference_steps: int = 50,
+              height: int | None = 1024,
+              width: int | None = 1024,
+              num_inference_steps: int = 20,
               ) -> list[np.ndarray]:
         pipeline = StableDiffusionXLPipeline(
             vae=self.vae,
@@ -113,7 +113,8 @@ class StableDiffusionXLModule(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         num_batches = len(batch["image"])
-        batch["text"] = ["" if np.random.rand() < self.cfg_prob else t for t in batch["text"]]
+        if self.cfg_prob > 0:
+            batch["text"] = ["" if np.random.rand() < self.cfg_prob else t for t in batch["text"]]
         batch["text_one"] = self.tokenizer_one(
             batch["text"],
             max_length=self.tokenizer_one.model_max_length,
@@ -126,7 +127,7 @@ class StableDiffusionXLModule(L.LightningModule):
             padding="max_length",
             truncation=True,
             return_tensors="pt").input_ids.to(self.device)
-                
+
         latents = self.vae.encode(batch["image"]).latent_dist.sample() * self.vae.config.scaling_factor
         noise = torch.randn_like(latents, device=self.device)
         timesteps = torch.randint(
