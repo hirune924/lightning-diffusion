@@ -19,7 +19,7 @@ python scripts/main.py fit --trainer=config/trainer.yaml --model=config/stable_d
 ```
 ### Train Stable Diffusion XL
 ```sh
-python scripts/main.py fit --trainer=config/trainer.yaml --model=config/stable_diffusion_xl_model.yaml --data=config/hf_t2i_data.yaml
+python scripts/main.py fit --trainer=config/trainer.yaml --model=config/stable_diffusion_xl_model.yaml --data=config/stable_diffusion_xl_data.yaml
 ```
 
 ## Acknowledgement

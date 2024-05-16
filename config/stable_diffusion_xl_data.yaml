@@ -2,7 +2,7 @@ class_path: lightning_diffusion.data.datasets.HFDataModule
 init_args:
   dataset_name: reach-vb/pokemon-blip-captions
   cache_dir: null
-  batch_size: 32
+  batch_size: 8
   num_workers: 4
   dataset_cls: lightning_diffusion.data.datasets.HFStableDiffusionXLDataset
   dataset_args:

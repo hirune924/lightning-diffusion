@@ -9,7 +9,7 @@ import datasets as hfd
 from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import v2
 from typing import Any
-from lightning_diffusion.data.transforms import RandomCrop, ComputeTimeIds
+from lightning_diffusion.data.transforms import RandomCropWithInfo, ComputeTimeIds
 
 class HFT2IDataset(Dataset):
     """Dataset for huggingface datasets.
@@ -105,7 +105,7 @@ class HFStableDiffusionXLDataset(HFT2IDataset):
     def init_post_process(self):
         self.resize = v2.Resize(size=1024, interpolation=v2.InterpolationMode.BILINEAR)
         self.hflip = v2.RandomHorizontalFlip(p=0.5)
-        self.random_crop = RandomCrop(size=1024)
+        self.random_crop = RandomCropWithInfo(size=1024)
         self.time_ids = ComputeTimeIds()
         self.normalize = v2.Compose([
             v2.ToImage(),
