@@ -1,8 +1,0 @@
-class_path: lightning_diffusion.model.stable_diffusion_xl.StableDiffusionXLModule
-init_args:
-  base_model: stabilityai/stable-diffusion-xl-base-1.0
-  train_mode: unet_attn
-  gradient_checkpointing: true
-  ucg_rate: 0.0
-  input_perturbation_gamma: 0.0
-  noise_offset: 0.0
