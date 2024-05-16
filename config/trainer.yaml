@@ -13,13 +13,13 @@ logger:
       save_dir: ${default_root_dir}
       name: csv_logs
 callbacks:
-  - class_path: lightning_diffusion.callback.visualization.VisualizationCallback
-    init_args:
-      prompt:
-        - woman
-        - boy
-        - dog
-        - apple
+  #- class_path: lightning_diffusion.callback.visualization.VisualizationCallback
+  #  init_args:
+  #    prompt:
+  #      - woman
+  #      - boy
+  #      - dog
+  #      - apple
   - class_path: LearningRateMonitor
   - class_path: ModelCheckpoint
     init_args:

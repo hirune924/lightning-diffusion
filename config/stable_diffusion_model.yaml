@@ -3,6 +3,6 @@ init_args:
   base_model: runwayml/stable-diffusion-v1-5
   train_mode: unet_attn
   gradient_checkpointing: false
-  cfg_prob: 0.0
+  ucg_rate: 0.0
   input_perturbation_gamma: 0.0
   noise_offset: 0.0

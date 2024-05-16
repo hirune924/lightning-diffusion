@@ -11,12 +11,12 @@ class StableDiffusionXLModule(L.LightningModule):
                  base_model: str = "stabilityai/stable-diffusion-xl-base-1.0", 
                  train_mode: str = "unet_attn",
                  gradient_checkpointing: bool = False,
-                 cfg_prob: float = 0.0,
+                 ucg_rate: float = 0.0,
                  input_perturbation_gamma: float = 0.0,
                  noise_offset: float = 0.0):
         super().__init__()
         self.input_perturbation_gamma = input_perturbation_gamma
-        self.cfg_prob = cfg_prob
+        self.ucg_rate = ucg_rate
         self.noise_offset = noise_offset
         self.tokenizer_one = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=base_model,
                                                            subfolder="tokenizer", use_fast=False)
@@ -113,8 +113,6 @@ class StableDiffusionXLModule(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         num_batches = len(batch["image"])
-        if self.cfg_prob > 0:
-            batch["text"] = ["" if np.random.rand() < self.cfg_prob else t for t in batch["text"]]
         batch["text_one"] = self.tokenizer_one(
             batch["text"],
             max_length=self.tokenizer_one.model_max_length,
@@ -147,6 +145,17 @@ class StableDiffusionXLModule(L.LightningModule):
         prompt_embeds, pooled_prompt_embeds = self.encode_prompt(
                 batch["text_one"], batch["text_two"])
         
+        if self.ucg_rate > 0:
+            mask = torch.multinomial(
+                torch.Tensor([
+                    self.ucg_rate,
+                    1 - self.ucg_rate,
+                ]),
+                num_batches,
+                replacement=True).to(self.device)
+            prompt_embeds = prompt_embeds * mask.view(-1, 1, 1)
+            pooled_prompt_embeds = (pooled_prompt_embeds * mask.view(-1, 1)).view(num_batches, -1)
+
         unet_added_conditions = {
             "time_ids": batch["time_ids"],
             "text_embeds": pooled_prompt_embeds,
