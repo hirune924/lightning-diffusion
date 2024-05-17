@@ -13,7 +13,8 @@ class HFDataModule(LightningDataModule):
         batch_size: int= 8,
         num_workers: int=4,
         dataset_cls: type[HFT2IDataset] = HFStableDiffusionDataset,
-        dataset_args: dict[str, Any] = {"image_column": "image", "caption_column": "text", "csv": "metadata.csv"}
+        dataset_args: dict[str, Any] = {"image_column": "image", "caption_column": "text", "csv": "metadata.csv"},
+        dataset_process_args: dict[str, Any] = {}
     ):
         super().__init__()
         self.dataset_name = dataset_name
@@ -22,6 +23,7 @@ class HFDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.dataset_args = dataset_args
+        self.dataset_process_args = dataset_process_args
 
     # OPTIONAL, called only on 1 GPU/machine(for download or tokenize)
     def prepare_data(self):
@@ -36,7 +38,7 @@ class HFDataModule(LightningDataModule):
                 cache_dir=self.cache_dir,
                 **self.dataset_args
                 )
-            self.dataset.init_post_process()
+            self.dataset.init_post_process(**self.dataset_process_args)
 
     def train_dataloader(self):
         return DataLoader(self.dataset, batch_size=self.batch_size, num_workers=self.num_workers,

@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 from torchvision.transforms import v2
 from typing import Any
 from lightning_diffusion.data.transforms import RandomCropWithInfo, ComputeTimeIds
+from transformers import AutoProcessor
 
 class HFT2IDataset(Dataset):
     """Dataset for huggingface datasets.
@@ -120,5 +121,25 @@ class HFStableDiffusionXLDataset(HFT2IDataset):
         size_info['original_img_shape'] = original_img_shape
         input["time_ids"] = self.time_ids(input['image'], size_info)
         input['image'] = self.normalize(input['image'])
+        
+        return input
+
+class HFStableDiffusionIPAdapterDataset(HFT2IDataset):
+    def init_post_process(self, image_encoder: str):
+        self.transform = v2.Compose([
+            v2.ToImage(),  # Convert to tensor, only needed if you had a PIL image
+            v2.ToDtype(torch.uint8, scale=True),
+            v2.Resize(size=512, interpolation=v2.InterpolationMode.BILINEAR),
+            v2.RandomCrop(size=512),
+            v2.RandomHorizontalFlip(),
+            #v2.ToTensor(),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=[0.5], std=[0.5]),
+        ])
+        self.image_encoder_process = AutoProcessor.from_pretrained(image_encoder)
+
+    def post_process(self, input: dict[str: Any]):
+        input['clip_img'] = self.image_encoder_process(images=input['image'], return_tensors="pt").pixel_values[0]
+        input['image'] = self.transform(input['image'])
         
         return input

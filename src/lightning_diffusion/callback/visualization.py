@@ -2,6 +2,7 @@ import lightning as L
 from lightning.pytorch.loggers.logger import Logger
 from lightning.pytorch.loggers import TensorBoardLogger, CSVLogger
 import numpy as np
+from typing import Any
 
 class VisualizationCallback(L.Callback):
     def __init__(self,
