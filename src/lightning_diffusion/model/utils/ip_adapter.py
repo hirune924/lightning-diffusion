@@ -15,7 +15,7 @@ from safetensors import safe_open
 from torch import nn
 
 
-def set_unet_ip_adapter(unet: nn.Module) -> None:
+def set_unet_ip_adapter(unet: nn.Module, num_tokens:int = 4) -> None:
     """Set IP-Adapter for Unet.
 
     Args:
@@ -49,7 +49,7 @@ def set_unet_ip_adapter(unet: nn.Module) -> None:
             )
             attn_procs[name] = attn_processor_class(
                 hidden_size=hidden_size,
-                cross_attention_dim=cross_attention_dim, scale=1.0,
+                cross_attention_dim=cross_attention_dim, scale=1.0, num_tokens=[num_tokens]
             ).to(dtype=unet.dtype, device=unet.device)
 
             key_id += 2

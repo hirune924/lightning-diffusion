@@ -47,7 +47,7 @@ class StableDiffusionIPAdapterModule(L.LightningModule):
         self.image_projection.requires_grad_(True)
 
         self.unet.requires_grad_(requires_grad=False)
-        set_unet_ip_adapter(self.unet)
+        set_unet_ip_adapter(self.unet, num_tokens=4)
 
         self.train()
 
@@ -79,11 +79,10 @@ class StableDiffusionIPAdapterModule(L.LightningModule):
             safety_checker=None,
             requires_safety_checker=False
         )
+
         adapter_state_dict = process_ip_adapter_state_dict(
             self.unet, self.image_projection)
-        
         # convert IP-Adapter Image Projection layers to diffusers
-
         image_projection_layer = (
             pipeline.unet._convert_ip_adapter_image_proj_to_diffusers(  # noqa
                 adapter_state_dict["image_proj"]))
@@ -93,6 +92,7 @@ class StableDiffusionIPAdapterModule(L.LightningModule):
         pipeline.unet.encoder_hid_proj = MultiIPAdapterImageProjection(
             [image_projection_layer])
         pipeline.unet.config.encoder_hid_dim_type = "ip_image_proj"
+        
         pipeline.to(self.device)
         pipeline.set_progress_bar_config(disable=True)
 
@@ -161,7 +161,7 @@ class StableDiffusionIPAdapterModule(L.LightningModule):
         image_embeds = (image_embeds * mask.view(-1, 1)).view(num_batches, 1, 1, -1)
 
         ip_tokens = self.image_projection(image_embeds)
-        encoder_hidden_states = torch.cat([encoder_hidden_states, ip_tokens], dim=1)
+        encoder_hidden_states = (encoder_hidden_states, [ip_tokens])
 
         model_pred = self.unet(
             noisy_latents,
@@ -188,7 +188,7 @@ class StableDiffusionIPAdapterPlusModule(StableDiffusionIPAdapterModule):
                  ucg_rate: float = 0.0,
                  input_perturbation_gamma: float = 0.0,
                  noise_offset: float = 0.0):
-        super().__init__()
+        super(StableDiffusionIPAdapterModule, self).__init__()
         self.input_perturbation_gamma = input_perturbation_gamma
         self.ucg_rate = ucg_rate
         self.noise_offset = noise_offset
@@ -222,7 +222,7 @@ class StableDiffusionIPAdapterPlusModule(StableDiffusionIPAdapterModule):
         self.image_projection.requires_grad_(True)
 
         self.unet.requires_grad_(requires_grad=False)
-        set_unet_ip_adapter(self.unet)
+        set_unet_ip_adapter(self.unet, num_tokens=16)
 
         self.train()
 
@@ -269,7 +269,7 @@ class StableDiffusionIPAdapterPlusModule(StableDiffusionIPAdapterModule):
 
         ip_tokens = self.image_projection(image_embeds)
 
-        encoder_hidden_states = torch.cat([encoder_hidden_states, ip_tokens], dim=1)
+        encoder_hidden_states = (encoder_hidden_states, [ip_tokens])
 
         model_pred = self.unet(
             noisy_latents,

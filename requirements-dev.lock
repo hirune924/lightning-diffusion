@@ -19,7 +19,7 @@ charset-normalizer==3.3.2
 contourpy==1.2.1
 cycler==0.12.1
 datasets==2.19.0
-diffusers==0.27.2
+diffusers @ git+https://github.com/huggingface/diffusers
 dill==0.3.8
 docstring-parser==0.16
 filelock==3.14.0
