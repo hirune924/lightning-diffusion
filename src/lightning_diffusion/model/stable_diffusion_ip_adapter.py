@@ -79,20 +79,9 @@ class StableDiffusionIPAdapterModule(L.LightningModule):
             safety_checker=None,
             requires_safety_checker=False
         )
-
-        adapter_state_dict = process_ip_adapter_state_dict(
-            self.unet, self.image_projection)
-        # convert IP-Adapter Image Projection layers to diffusers
-        image_projection_layer = (
-            pipeline.unet._convert_ip_adapter_image_proj_to_diffusers(  # noqa
-                adapter_state_dict["image_proj"]))
-        image_projection_layer.to(
-            device=pipeline.unet.device, dtype=pipeline.unet.dtype)
-
-        pipeline.unet.encoder_hid_proj = MultiIPAdapterImageProjection(
-            [image_projection_layer])
+        pipeline.unet.encoder_hid_proj = MultiIPAdapterImageProjection([self.image_projection])
         pipeline.unet.config.encoder_hid_dim_type = "ip_image_proj"
-        
+
         pipeline.to(self.device)
         pipeline.set_progress_bar_config(disable=True)
 
@@ -113,7 +102,7 @@ class StableDiffusionIPAdapterModule(L.LightningModule):
 
             images.append(np.array(image))
 
-        del pipeline, adapter_state_dict
+        del pipeline
         torch.cuda.empty_cache()
 
         self.unet.encoder_hid_proj = orig_encoder_hid_proj
