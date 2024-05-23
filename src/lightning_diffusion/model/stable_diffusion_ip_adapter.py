@@ -254,7 +254,7 @@ class StableDiffusionIPAdapterPlusModule(StableDiffusionIPAdapterModule):
             replacement=True).to(clip_img)
         clip_img = clip_img * mask.view(-1, 1, 1, 1)
 
-        image_embeds = self.image_encoder(batch["clip_img"], output_hidden_states=True).hidden_states[-2]
+        image_embeds = self.image_encoder(clip_img, output_hidden_states=True).hidden_states[-2]
 
         ip_tokens = self.image_projection(image_embeds)
 
