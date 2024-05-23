@@ -1,0 +1,109 @@
+from pathlib import Path
+import os
+import torch
+import random
+import numpy as np
+from PIL import Image
+import datasets as hfd
+from torch.utils.data import Dataset
+from torchvision.transforms import v2
+from typing import Any
+from lightning_diffusion.data.transforms import RandomCropWithInfo, ComputeTimeIds
+from transformers import AutoProcessor
+
+class HFControlnetDataset(Dataset):
+    """Dataset for huggingface datasets.
+
+    Args:
+    ----
+        dataset: Dataset name or path to dataset.
+        image_column: Image column name. Defaults to 'image'.
+        caption_column: Caption column name. Defaults to 'text'.
+        condition_column: Condition column name for ControlNet. Defaults to 'condition'.
+        csv: Caption csv file name when loading local folder. Defaults to 'metadata.csv'.
+        cache_dir: The directory where the downloaded datasets will be stored.Defaults to None.
+    """
+    def __init__(self,
+                 dataset: str,
+                 image_column: str = "image",
+                 condition_column: str = "condition",
+                 caption_column: str = "text",
+                 csv: str = "metadata.csv",
+                 cache_dir: str | None = None) -> None:
+        self.dataset_name = dataset
+        if Path(dataset).exists():
+            # load local folder
+            data_file = os.path.join(dataset, csv)
+            self.dataset = hfd.load_dataset(
+                "csv", data_files=data_file, cache_dir=cache_dir)["train"]
+        else:
+            # load huggingface online
+            self.dataset = hfd.load_dataset(dataset, cache_dir=cache_dir)["train"]
+
+        self.image_column = image_column
+        self.caption_column = caption_column
+        self.condition_column = condition_column
+
+    def __len__(self) -> int:
+        """Get the length of dataset.
+
+        Returns
+        -------
+            int: The length of filtered dataset.
+        """
+        return len(self.dataset)
+
+    def __getitem__(self, idx: int) -> dict:
+        """Get item.
+
+        Args:
+        ----
+            idx: The index of self.data_list.
+
+        Returns:
+        -------
+            dict: The idx-th image and data information of dataset after `post_process()`.
+        """
+        data_info = self.dataset[idx]
+        image = data_info[self.image_column]
+        if isinstance(image, str):
+            image = Image.open(os.path.join(self.dataset_name, image))
+        image = image.convert("RGB")
+        condition_image = data_info[self.condition_column]
+        if isinstance(condition_image, str):
+            condition_image = Image.open(os.path.join(self.dataset_name, condition_image))
+        condition_image = condition_image.convert("RGB")
+        caption = data_info[self.caption_column]
+        if isinstance(caption, str):
+            pass
+        elif isinstance(caption, list | np.ndarray):
+            # take a random caption if there are multiple
+            caption = random.choice(caption)
+        else:
+            msg = (f"Caption column `{self.caption_column}` should "
+                   "contain either strings or lists of strings.")
+            raise ValueError(msg)
+        result = {"image": image, "condition_img": condition_image, "text": caption}
+        return self.post_process(result)
+    
+    def init_post_process(self):
+        raise NotImplementedError()
+    
+    def post_process(self):
+        raise NotImplementedError()
+    
+class HFStableDiffusionControlnetDataset(HFControlnetDataset):
+    def init_post_process(self):
+        self.transform = v2.Compose([
+            v2.ToImage(),  # Convert to tensor, only needed if you had a PIL image
+            v2.ToDtype(torch.uint8, scale=True),
+            v2.Resize(size=512, interpolation=v2.InterpolationMode.BILINEAR),
+            v2.RandomCrop(size=512),
+            v2.RandomHorizontalFlip(),
+            #v2.ToTensor(),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=[0.5], std=[0.5]),
+        ])
+    def post_process(self, input: dict[str: Any]):
+        input['image'], input['condition_img'] = self.transform(input['image'], input['condition_img'])
+        return input

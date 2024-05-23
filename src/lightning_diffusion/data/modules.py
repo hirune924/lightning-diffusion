@@ -2,9 +2,9 @@ from lightning import LightningDataModule
 from pathlib import Path
 import datasets as hfd
 from torch.utils.data import DataLoader
-from typing import Any
+from typing import Any, Union
 from lightning_diffusion.data.t2i_datasets import HFT2IDataset, HFStableDiffusionDataset
-
+from lightning_diffusion.data.controlnet_datasets import HFControlnetDataset
 class HFDataModule(LightningDataModule):
     def __init__(
         self,
@@ -12,7 +12,7 @@ class HFDataModule(LightningDataModule):
         cache_dir: str | None = None,
         batch_size: int= 8,
         num_workers: int=4,
-        dataset_cls: type[HFT2IDataset] = HFStableDiffusionDataset,
+        dataset_cls: type[HFT2IDataset] | type[HFControlnetDataset] = HFStableDiffusionDataset,
         dataset_args: dict[str, Any] = {"image_column": "image", "caption_column": "text", "csv": "metadata.csv"},
         dataset_process_args: dict[str, Any] = {}
     ):
