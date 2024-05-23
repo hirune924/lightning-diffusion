@@ -143,3 +143,29 @@ class HFStableDiffusionIPAdapterDataset(HFT2IDataset):
         input['image'] = self.transform(input['image'])
         
         return input
+    
+class HFStableDiffusionXLIPAdapterDataset(HFT2IDataset):
+    def init_post_process(self, image_encoder: str):
+        self.resize = v2.Resize(size=1024, interpolation=v2.InterpolationMode.BILINEAR)
+        self.hflip = v2.RandomHorizontalFlip(p=0.5)
+        self.random_crop = RandomCropWithInfo(size=1024)
+        self.time_ids = ComputeTimeIds()
+        self.normalize = v2.Compose([
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=[0.5], std=[0.5]),
+        ])
+        self.image_encoder_process = AutoProcessor.from_pretrained(image_encoder)
+
+    def post_process(self, input: dict[str: Any]):
+        input['clip_img'] = self.image_encoder_process(images=input['image'], return_tensors="pt").pixel_values[0]
+        
+        original_img_shape =  [input['image'].height, input['image'].width]
+        input['image'] = self.resize(input['image'])
+        input['image'] = self.hflip(input['image'])
+        input['image'], size_info = self.random_crop(input['image'])
+        size_info['original_img_shape'] = original_img_shape
+        input["time_ids"] = self.time_ids(input['image'], size_info)
+        input['image'] = self.normalize(input['image'])
+        
+        return input
