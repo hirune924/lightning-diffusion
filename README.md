@@ -24,6 +24,7 @@ python scripts/main.py fit -c 'your config path'
 * t2i-adapter
 * prompt-free diffusion
 * esd
+* aspect ratio bucketing
 
 ## Acknowledgement
-This repo borrows the architecture design and part of the code from [diffengine](https://github.com/okotaku/diffengine).
+This repo borrows the architecture design and part of the code from [diffengine](https://github.com/okotaku/diffengine), [diffusers](https://github.com/huggingface/diffusers), [naifu](https://github.com/Mikubill/naifu), [generative-models](https://github.com/Stability-AI/generative-models).
