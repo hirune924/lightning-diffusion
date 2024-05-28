@@ -29,7 +29,7 @@ trainer:
       prefix: ''
       flush_logs_every_n_steps: 100
   callbacks:
-  - class_path: lightning_diffusion.callback.visualization.VisualizationCallback
+  - class_path: lightning_diffusion.callback.VisualizationCallback
     init_args:
       prompt:
       - "cyan circle with brown floral background"
@@ -102,7 +102,7 @@ trainer:
   default_root_dir: lightning_logs
 ckpt_path: null
 model:
-  class_path: lightning_diffusion.model.stable_diffusion_xl_controlnet.StableDiffusionXLControlnetModule
+  class_path: lightning_diffusion.model.StableDiffusionXLControlnetModule
   init_args:
     base_model: stabilityai/stable-diffusion-xl-base-1.0
     controlnet_model: null
@@ -112,13 +112,13 @@ model:
     noise_offset: 0.05
 
 data:
-  class_path: lightning_diffusion.data.modules.HFDataModule
+  class_path: lightning_diffusion.data.HFDataModule
   init_args:
     dataset_name: fusing/fill50k
     cache_dir: null
     batch_size: 2
     num_workers: 4
-    dataset_cls: lightning_diffusion.data.controlnet_datasets.HFStableDiffusionXLControlnetDataset
+    dataset_cls: lightning_diffusion.data.HFStableDiffusionXLControlnetDataset
     dataset_args:
       image_column: image
       caption_column: text

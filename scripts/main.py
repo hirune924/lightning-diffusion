@@ -1,9 +1,4 @@
 from lightning.pytorch.cli import LightningCLI
-# simple demo classes for your convenience
-from lightning_diffusion.data.modules import HFDataModule
-from lightning_diffusion.model.stable_diffusion import StableDiffusionModule
-from lightning_diffusion.model.stable_diffusion_xl import StableDiffusionXLModule
-from lightning_diffusion.model.stable_diffusion_ip_adapter import StableDiffusionIPAdapterModule
 import torch
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.set_float32_matmul_precision('medium')

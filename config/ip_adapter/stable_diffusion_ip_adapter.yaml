@@ -29,7 +29,7 @@ trainer:
       prefix: ''
       flush_logs_every_n_steps: 100
   callbacks:
-  - class_path: lightning_diffusion.callback.visualization.VisualizationCallback
+  - class_path: lightning_diffusion.callback.VisualizationCallback
     init_args:
       prompt:
       - woman
@@ -102,7 +102,7 @@ trainer:
   default_root_dir: lightning_logs
 ckpt_path: null
 model:
-  class_path: lightning_diffusion.model.stable_diffusion_ip_adapter.StableDiffusionIPAdapterPlusModule
+  class_path: lightning_diffusion.model.StableDiffusionIPAdapterModule
   init_args:
     base_model: runwayml/stable-diffusion-v1-5
     image_encoder: openai/clip-vit-large-patch14
@@ -110,13 +110,13 @@ model:
     input_perturbation_gamma: 0.0
     noise_offset: 0.0
 data:
-  class_path: lightning_diffusion.data.modules.HFDataModule
+  class_path: lightning_diffusion.data.HFDataModule
   init_args:
     dataset_name: reach-vb/pokemon-blip-captions
     cache_dir: null
     batch_size: 32
     num_workers: 4
-    dataset_cls: lightning_diffusion.data.t2i_datasets.HFStableDiffusionIPAdapterDataset
+    dataset_cls: lightning_diffusion.data.HFStableDiffusionIPAdapterDataset
     dataset_args:
       image_column: image
       caption_column: text

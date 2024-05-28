@@ -29,24 +29,23 @@ trainer:
       prefix: ''
       flush_logs_every_n_steps: 100
   callbacks:
-  - class_path: lightning_diffusion.callback.visualization.VisualizationCallback
+  - class_path: lightning_diffusion.callback.VisualizationCallback
     init_args:
       prompt:
-      - "cyan circle with brown floral background"
-      - "cyan circle with brown floral background"
-      - "cyan circle with brown floral background"
-      - "cyan circle with brown floral background"
+      - woman
+      - boy
+      - dog
+      - apple
       interval: 1
       height: null
       width: null
       by_epoch: true
     dict_kwargs:
-      condition_image:
-      - 'https://github.com/okotaku/diffengine/assets/24734142/1af9dbb0-b056-435c-bc4b-62a823889191'
-      - 'https://github.com/okotaku/diffengine/assets/24734142/1af9dbb0-b056-435c-bc4b-62a823889191'
-      - 'https://github.com/okotaku/diffengine/assets/24734142/1af9dbb0-b056-435c-bc4b-62a823889191'
-      - 'https://github.com/okotaku/diffengine/assets/24734142/1af9dbb0-b056-435c-bc4b-62a823889191'
-
+      example_image:
+      - 'https://lambdalabs.com/hs-fs/hubfs/2.%20Images/Images%20-%20Blog%20Posts/2022%20-%20Blog%20Images/image-1-1.png'
+      - 'https://lambdalabs.com/hs-fs/hubfs/2.%20Images/Images%20-%20Blog%20Posts/2022%20-%20Blog%20Images/image-1-1.png'
+      - 'https://lambdalabs.com/hs-fs/hubfs/2.%20Images/Images%20-%20Blog%20Posts/2022%20-%20Blog%20Images/image-1-1.png'
+      - 'https://lambdalabs.com/hs-fs/hubfs/2.%20Images/Images%20-%20Blog%20Posts/2022%20-%20Blog%20Images/image-1-1.png'
   - class_path: lightning.pytorch.callbacks.LearningRateMonitor
     init_args:
       logging_interval: null
@@ -102,24 +101,24 @@ trainer:
   default_root_dir: lightning_logs
 ckpt_path: null
 model:
-  class_path: lightning_diffusion.model.stable_diffusion_controlnet.StableDiffusionControlnetModule
+  class_path: lightning_diffusion.model.StableDiffusionXLIPAdapterPlusModule
   init_args:
-    base_model: runwayml/stable-diffusion-v1-5
-    controlnet_model: null
-    gradient_checkpointing: false
+    base_model: stabilityai/stable-diffusion-xl-base-1.0
+    image_encoder: openai/clip-vit-large-patch14
     ucg_rate: 0.1
     input_perturbation_gamma: 0.0
     noise_offset: 0.0
 data:
-  class_path: lightning_diffusion.data.modules.HFDataModule
+  class_path: lightning_diffusion.data.HFDataModule
   init_args:
-    dataset_name: fusing/fill50k
+    dataset_name: reach-vb/pokemon-blip-captions
     cache_dir: null
-    batch_size: 16
+    batch_size: 2
     num_workers: 4
-    dataset_cls: lightning_diffusion.data.controlnet_datasets.HFStableDiffusionControlnetDataset
+    dataset_cls: lightning_diffusion.data.HFStableDiffusionXLIPAdapterDataset
     dataset_args:
       image_column: image
       caption_column: text
-      condition_column: conditioning_image
       csv: metadata.csv
+    dataset_process_args:
+      image_encoder: ${model.init_args.image_encoder}

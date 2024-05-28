@@ -3,8 +3,8 @@ from pathlib import Path
 import datasets as hfd
 from torch.utils.data import DataLoader
 from typing import Any, Union
-from lightning_diffusion.data.t2i_datasets import HFT2IDataset, HFStableDiffusionDataset
-from lightning_diffusion.data.controlnet_datasets import HFControlnetDataset
+from lightning_diffusion.data import HFT2IDataset, HFStableDiffusionDataset
+from lightning_diffusion.data import HFControlnetDataset
 class HFDataModule(LightningDataModule):
     def __init__(
         self,
