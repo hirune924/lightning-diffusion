@@ -14,14 +14,24 @@ class RandomCropWithInfo(torch.nn.Module):
         self.transform = torchvision.transforms.RandomCrop(
             *args, size, **kwargs)
         
-    def forward(self, image: Image):
-        size_info = {}
-        size_info["before_crop_size"] = [image.height, image.width]
+    def forward(self, image: Image.Image | list[Image.Image]):
+        if isinstance(image, list):
+            image_list = image
+        else:
+            image_list = [image]
 
-        y1, x1, h, w = self.transform.get_params(image, (self.size, self.size))
-        image = crop(image, y1, x1, h, w)
+        size_info = {}
+        size_info["before_crop_size"] = [image_list[0].height, image_list[0].width]
+
+        y1, x1, h, w = self.transform.get_params(image_list[0], (self.size, self.size))
+        image_list = [crop(im, y1, x1, h, w) for im in image_list]
         size_info["crop_top_left"] = [y1, x1]
         size_info["crop_bottom_right"] = [y1 + h, x1 + w]
+
+        if isinstance(image, list):
+            image = image_list
+        else:
+            image = image_list[0]
 
         return image, size_info
 

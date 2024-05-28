@@ -107,3 +107,26 @@ class HFStableDiffusionControlnetDataset(HFControlnetDataset):
     def post_process(self, input: dict[str: Any]):
         input['image'], input['condition_img'] = self.transform(input['image'], input['condition_img'])
         return input
+    
+class HFStableDiffusionXLControlnetDataset(HFControlnetDataset):
+    def init_post_process(self):
+        self.resize = v2.Resize(size=1024, interpolation=v2.InterpolationMode.BILINEAR)
+        self.hflip = v2.RandomHorizontalFlip(p=0.5)
+        self.random_crop = RandomCropWithInfo(size=1024)
+        self.time_ids = ComputeTimeIds()
+        self.normalize = v2.Compose([
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=[0.5], std=[0.5]),
+        ])
+
+    def post_process(self, input: dict[str: Any]):
+        original_img_shape =  [input['image'].height, input['image'].width]
+        input['image'], input['condition_img'] = self.resize(input['image'], input['condition_img'])
+        input['image'], input['condition_img'] = self.hflip(input['image'], input['condition_img'])
+        (input['image'], input['condition_img']), size_info = self.random_crop([input['image'], input['condition_img']])
+        size_info['original_img_shape'] = original_img_shape
+        input["time_ids"] = self.time_ids(input['image'], size_info)
+        input['image'], input['condition_img'] = self.normalize(input['image'], input['condition_img'])
+        
+        return input
