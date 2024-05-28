@@ -13,14 +13,17 @@ python scripts/main.py fit --print_config
 ```sh
 python scripts/main.py fit -c 'your config path'
 ```
-### Train Stable Diffusion
-```sh
-python scripts/main.py fit --trainer=config/trainer.yaml --model=config/stable_diffusion_model.yaml --data=config/stable_diffusion_data.yaml
-```
-### Train Stable Diffusion XL
-```sh
-python scripts/main.py fit --trainer=config/trainer.yaml --model=config/stable_diffusion_xl_model.yaml --data=config/stable_diffusion_xl_data.yaml
-```
+
+### TODO
+* pre-compute-embs
+* pixart-alpha, pixart-sigma
+* inpaint
+* dreambooth
+* stable cascade
+* HDiT
+* t2i-adapter
+* prompt-free diffusion
+* esd
 
 ## Acknowledgement
 This repo borrows the architecture design and part of the code from [diffengine](https://github.com/okotaku/diffengine).
