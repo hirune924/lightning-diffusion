@@ -17,6 +17,9 @@ dependencies = [
     "omegaconf>=2.3.0",
     "peft>=0.10.0",
     "scipy>=1.13.0",
+    "ftfy>=6.2.0",
+    "bs4>=0.0.2",
+    "sentencepiece>=0.2.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.11"

@@ -1,6 +1,5 @@
 from lightning.pytorch.cli import LightningCLI
 import torch
-from lightning_diffusion.callback import *
 from lightning_diffusion.model import *
 from lightning_diffusion.data import *
 
