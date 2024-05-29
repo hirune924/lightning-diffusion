@@ -19,6 +19,7 @@ python scripts/main.py fit -c 'your config path'
 * pixart-alpha, pixart-sigma
 * inpaint
 * dreambooth
+* upscale
 * stable cascade
 * HDiT
 * t2i-adapter

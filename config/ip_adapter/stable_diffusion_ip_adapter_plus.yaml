@@ -102,7 +102,7 @@ trainer:
   default_root_dir: lightning_logs
 ckpt_path: null
 model:
-  class_path: lightning_diffusion.model.StableDiffusionIPAdapterPlusModule
+  class_path: StableDiffusionIPAdapterPlusModule
   init_args:
     base_model: runwayml/stable-diffusion-v1-5
     image_encoder: openai/clip-vit-large-patch14
@@ -110,7 +110,7 @@ model:
     input_perturbation_gamma: 0.0
     noise_offset: 0.0
 data:
-  class_path: lightning_diffusion.data.HFDataModule
+  class_path: HFDataModule
   init_args:
     dataset_name: reach-vb/pokemon-blip-captions
     cache_dir: null

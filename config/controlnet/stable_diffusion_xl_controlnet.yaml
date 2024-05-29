@@ -102,7 +102,7 @@ trainer:
   default_root_dir: lightning_logs
 ckpt_path: null
 model:
-  class_path: lightning_diffusion.model.StableDiffusionXLControlnetModule
+  class_path: StableDiffusionXLControlnetModule
   init_args:
     base_model: stabilityai/stable-diffusion-xl-base-1.0
     controlnet_model: null
@@ -112,7 +112,7 @@ model:
     noise_offset: 0.05
 
 data:
-  class_path: lightning_diffusion.data.HFDataModule
+  class_path: HFDataModule
   init_args:
     dataset_name: fusing/fill50k
     cache_dir: null
