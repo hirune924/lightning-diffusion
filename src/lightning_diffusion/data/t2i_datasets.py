@@ -170,7 +170,7 @@ class HFStableDiffusionXLIPAdapterDataset(HFT2IDataset):
         
         return input
     
-class HFPixArtAlphaDataset(HFT2IDataset):
+class HFPixArtDataset(HFT2IDataset):
     def init_post_process(self):
         self.resize = v2.Resize(size=512, interpolation=v2.InterpolationMode.BILINEAR)
         self.hflip = v2.RandomHorizontalFlip(p=0.5)

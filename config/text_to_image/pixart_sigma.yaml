@@ -97,11 +97,11 @@ ckpt_path: null
 model:
   class_path: PixArtModule
   init_args:
-    base_model: PixArt-alpha/PixArt-XL-2-512x512
-    base_transformer: PixArt-alpha/PixArt-XL-2-512x512
+    base_model: PixArt-alpha/pixart_sigma_sdxlvae_T5_diffusers
+    base_transformer: PixArt-alpha/PixArt-Sigma-XL-2-512-MS
     train_mode: transformer_lora
     gradient_checkpointing: true
-    tokenizer_max_length: 120
+    tokenizer_max_length: 300
     ucg_rate: 0.1
     input_perturbation_gamma: 0.05
     noise_offset: 0.05
