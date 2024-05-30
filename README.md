@@ -16,8 +16,6 @@ python scripts/main.py fit -c 'your config path'
 
 ### TODO
 * pre-compute-embs
-* pixart-alpha, pixart-sigma
-* inpaint
 * dreambooth
 * upscale
 * stable cascade

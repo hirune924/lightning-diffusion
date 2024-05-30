@@ -33,7 +33,7 @@ class PixArtModule(L.LightningModule):
                                                        subfolder="scheduler")
         self.text_encoder = T5EncoderModel.from_pretrained(pretrained_model_name_or_path=base_model,
                                                           subfolder="text_encoder")
-        self.vae = AutoencoderKL.from_pretrained(pretrained_model_name_or_path="stabilityai/sd-vae-ft-ema")
+        self.vae = AutoencoderKL.from_pretrained(pretrained_model_name_or_path=base_model, subfolder="vae")
         self.transformer = Transformer2DModel.from_pretrained(pretrained_model_name_or_path=base_transformer,
                                                               use_additional_conditions=use_resolution,
                                                               subfolder="transformer")
@@ -58,7 +58,7 @@ class PixArtModule(L.LightningModule):
         self.train()
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=1e-4, weight_decay=1e-2)
+        optimizer = torch.optim.AdamW(self.parameters(), lr=2e-5, weight_decay=3e-2, eps=1e-10)
         return optimizer
 
     @torch.inference_mode()
@@ -151,8 +151,10 @@ class PixArtModule(L.LightningModule):
             added_cond_kwargs=added_cond_kwargs).sample
         
         loss_dict = self.loss(model_pred, noise, latents, timesteps, noisy_latents)
+        total_loss = torch.sum(torch.stack(list(loss_dict.values())))
         self.log_dict(loss_dict)
-        return torch.sum(torch.stack(list(loss_dict.values())))
+        self.log("train_loss", total_loss)
+        return total_loss
     
     def loss(self,
              model_pred: torch.Tensor,
