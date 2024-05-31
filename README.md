@@ -15,17 +15,20 @@ python scripts/main.py fit -c 'your config path'
 ```
 
 ### TODO
-* pre-compute-embs
-* dreambooth
-* upscale
-* stable cascade
-* HDiT
-* t2i-adapter
-* prompt-free diffusion
-* esd
-* aspect ratio bucketing
-* save part of checkpoint
-* video, 3d, ... generation
+* high priority
+    * pre-compute-embs
+    * dreambooth
+    * lcm, dmd
+* other
+    * upscale
+    * stable cascade
+    * HDiT
+    * t2i-adapter
+    * prompt-free diffusion
+    * esd
+    * aspect ratio bucketing
+    * save part of checkpoint
+    * video, 3d, ... generation
 
 ## Acknowledgement
 This repo borrows the architecture design and part of the code from [diffengine](https://github.com/okotaku/diffengine), [diffusers](https://github.com/huggingface/diffusers), [naifu](https://github.com/Mikubill/naifu), [generative-models](https://github.com/Stability-AI/generative-models).
