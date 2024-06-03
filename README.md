@@ -18,12 +18,14 @@ python scripts/main.py fit -c 'your config path'
 * high priority
     * pre-compute-embs
     * dreambooth
-    * lcm, dmd
+    * lcm, (dmd, pcm)
 * other
     * upscale
     * stable cascade
     * HDiT
     * t2i-adapter
+    * textual-inversion
+    * deepfloyd
     * prompt-free diffusion
     * esd
     * aspect ratio bucketing
