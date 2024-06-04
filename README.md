@@ -30,7 +30,9 @@ python scripts/main.py fit -c 'your config path'
     * esd
     * aspect ratio bucketing
     * save part of checkpoint
+    * tips from kohya-ss/sd-scripts
     * video, 3d, ... generation
 
 ## Acknowledgement
-This repo borrows the architecture design and part of the code from [diffengine](https://github.com/okotaku/diffengine), [diffusers](https://github.com/huggingface/diffusers), [naifu](https://github.com/Mikubill/naifu), [generative-models](https://github.com/Stability-AI/generative-models).
+This repo borrows the architecture design and part of the code from [diffengine](https://github.com/okotaku/diffengine), [diffusers](https://github.com/huggingface/diffusers), [naifu](https://github.com/Mikubill/naifu), [generative-models](https://github.com/Stability-AI/generative-models), [sd-scripts](https://github.com/kohya-ss/sd-scripts).
+

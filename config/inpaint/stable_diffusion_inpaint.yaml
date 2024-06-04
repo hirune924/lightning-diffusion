@@ -123,5 +123,6 @@ data:
     dataset_cls: lightning_diffusion.data.HFStableDiffusionInpaintDataset
     dataset_args:
       image_column: image
-      caption_column: text
       csv: metadata.csv
+    dataset_process_args:
+      instance_prompt: shs

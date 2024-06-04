@@ -119,7 +119,5 @@ data:
     num_workers: 4
     dataset_cls: lightning_diffusion.data.HFStableDiffusionControlnetDataset
     dataset_args:
-      image_column: image
-      caption_column: text
-      condition_column: conditioning_image
+      column_map: {"image": "image", "condition_img": "conditioning_image", "text": "text"}
       csv: metadata.csv

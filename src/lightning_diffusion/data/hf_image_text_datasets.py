@@ -11,7 +11,7 @@ from typing import Any
 from lightning_diffusion.data.transforms import RandomCropWithInfo, ComputeTimeIds, T5TextPreprocess, GenerateRandomMask
 from transformers import AutoProcessor
 
-class HFT2IDataset(Dataset):
+class HFImageTextDataset(Dataset):
     """Dataset for huggingface datasets.
 
     Args:
@@ -85,7 +85,7 @@ class HFT2IDataset(Dataset):
     def post_process(self):
         raise NotImplementedError()
 
-class HFStableDiffusionDataset(HFT2IDataset):
+class HFStableDiffusionDataset(HFImageTextDataset):
     def init_post_process(self):
         self.transform = v2.Compose([
             v2.ToImage(),  # Convert to tensor, only needed if you had a PIL image
@@ -101,7 +101,7 @@ class HFStableDiffusionDataset(HFT2IDataset):
         input['image'] = self.transform(input['image'])
         return input
 
-class HFStableDiffusionXLDataset(HFT2IDataset):
+class HFStableDiffusionXLDataset(HFImageTextDataset):
     def init_post_process(self):
         self.resize = v2.Resize(size=1024, interpolation=v2.InterpolationMode.BILINEAR)
         self.hflip = v2.RandomHorizontalFlip(p=0.5)
@@ -124,7 +124,7 @@ class HFStableDiffusionXLDataset(HFT2IDataset):
         
         return input
 
-class HFStableDiffusionIPAdapterDataset(HFT2IDataset):
+class HFStableDiffusionIPAdapterDataset(HFImageTextDataset):
     def init_post_process(self, image_encoder: str):
         self.transform = v2.Compose([
             v2.ToImage(),  # Convert to tensor, only needed if you had a PIL image
@@ -144,7 +144,7 @@ class HFStableDiffusionIPAdapterDataset(HFT2IDataset):
         
         return input
     
-class HFStableDiffusionXLIPAdapterDataset(HFT2IDataset):
+class HFStableDiffusionXLIPAdapterDataset(HFImageTextDataset):
     def init_post_process(self, image_encoder: str):
         self.resize = v2.Resize(size=1024, interpolation=v2.InterpolationMode.BILINEAR)
         self.hflip = v2.RandomHorizontalFlip(p=0.5)
@@ -170,7 +170,7 @@ class HFStableDiffusionXLIPAdapterDataset(HFT2IDataset):
         
         return input
     
-class HFPixArtDataset(HFT2IDataset):
+class HFPixArtDataset(HFImageTextDataset):
     def init_post_process(self):
         self.resize = v2.Resize(size=512, interpolation=v2.InterpolationMode.BILINEAR)
         self.hflip = v2.RandomHorizontalFlip(p=0.5)
@@ -195,7 +195,7 @@ class HFPixArtDataset(HFT2IDataset):
         
         return input
     
-class HFStableDiffusionInpaintDataset(HFT2IDataset):
+class HFStableDiffusionInpaintDataset(HFImageTextDataset):
     def init_post_process(self):
         self.transform = v2.Compose([
             v2.Resize(size=512, interpolation=v2.InterpolationMode.BILINEAR),

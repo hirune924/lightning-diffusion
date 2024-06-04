@@ -10,8 +10,9 @@ from torchvision.transforms import v2
 from typing import Any
 from lightning_diffusion.data.transforms import RandomCropWithInfo, ComputeTimeIds
 from transformers import AutoProcessor
+from diffusers.utils import load_image
 
-class HFControlnetDataset(Dataset):
+class HFGeneralDataset(Dataset):
     """Dataset for huggingface datasets.
 
     Args:
@@ -25,9 +26,7 @@ class HFControlnetDataset(Dataset):
     """
     def __init__(self,
                  dataset: str,
-                 image_column: str = "image",
-                 condition_column: str = "condition",
-                 caption_column: str = "text",
+                 column_map: dict[str, str] = {"image": "image", "condition_img": "condition", "text": "text"},
                  csv: str = "metadata.csv",
                  cache_dir: str | None = None) -> None:
         self.dataset_name = dataset
@@ -40,9 +39,7 @@ class HFControlnetDataset(Dataset):
             # load huggingface online
             self.dataset = hfd.load_dataset(dataset, cache_dir=cache_dir)["train"]
 
-        self.image_column = image_column
-        self.caption_column = caption_column
-        self.condition_column = condition_column
+        self.column_map = column_map
 
     def __len__(self) -> int:
         """Get the length of dataset.
@@ -65,25 +62,10 @@ class HFControlnetDataset(Dataset):
             dict: The idx-th image and data information of dataset after `post_process()`.
         """
         data_info = self.dataset[idx]
-        image = data_info[self.image_column]
-        if isinstance(image, str):
-            image = Image.open(os.path.join(self.dataset_name, image))
-        image = image.convert("RGB")
-        condition_image = data_info[self.condition_column]
-        if isinstance(condition_image, str):
-            condition_image = Image.open(os.path.join(self.dataset_name, condition_image))
-        condition_image = condition_image.convert("RGB")
-        caption = data_info[self.caption_column]
-        if isinstance(caption, str):
-            pass
-        elif isinstance(caption, list | np.ndarray):
-            # take a random caption if there are multiple
-            caption = random.choice(caption)
-        else:
-            msg = (f"Caption column `{self.caption_column}` should "
-                   "contain either strings or lists of strings.")
-            raise ValueError(msg)
-        result = {"image": image, "condition_img": condition_image, "text": caption}
+        result = {}
+        for k, v in self.column_map.items():
+            result[k] = data_info[v]
+            
         return self.post_process(result)
     
     def init_post_process(self):
@@ -92,7 +74,7 @@ class HFControlnetDataset(Dataset):
     def post_process(self):
         raise NotImplementedError()
     
-class HFStableDiffusionControlnetDataset(HFControlnetDataset):
+class HFStableDiffusionControlnetDataset(HFGeneralDataset):
     def init_post_process(self):
         self.transform = v2.Compose([
             v2.ToImage(),  # Convert to tensor, only needed if you had a PIL image
@@ -105,10 +87,19 @@ class HFStableDiffusionControlnetDataset(HFControlnetDataset):
             v2.Normalize(mean=[0.5], std=[0.5]),
         ])
     def post_process(self, input: dict[str: Any]):
+        if isinstance(input["image"], str):
+            input["image"] = load_image(os.path.join(self.dataset_name, input["image"]))
+        input["image"].convert('RGB')
+        if isinstance(input["condition_img"], str):
+            input["condition_img"] = load_image(os.path.join(self.dataset_name, input["condition_img"]))
+        input["condition_img"].convert('RGB')
+        if isinstance(input["text"], list | np.ndarray):
+            input["text"] = random.choice(input["text"])
+
         input['image'], input['condition_img'] = self.transform(input['image'], input['condition_img'])
         return input
     
-class HFStableDiffusionXLControlnetDataset(HFControlnetDataset):
+class HFStableDiffusionXLControlnetDataset(HFGeneralDataset):
     def init_post_process(self):
         self.resize = v2.Resize(size=1024, interpolation=v2.InterpolationMode.BILINEAR)
         self.hflip = v2.RandomHorizontalFlip(p=0.5)
@@ -121,6 +112,15 @@ class HFStableDiffusionXLControlnetDataset(HFControlnetDataset):
         ])
 
     def post_process(self, input: dict[str: Any]):
+        if isinstance(input["image"], str):
+            input["image"] = load_image(os.path.join(self.dataset_name, input["image"]))
+        input["image"].convert('RGB')
+        if isinstance(input["condition_img"], str):
+            input["condition_img"] = load_image(os.path.join(self.dataset_name, input["condition_img"]))
+        input["condition_img"].convert('RGB')
+        if isinstance(input["text"], list | np.ndarray):
+            input["text"] = random.choice(input["text"])
+
         original_img_shape =  [input['image'].height, input['image'].width]
         input['image'], input['condition_img'] = self.resize(input['image'], input['condition_img'])
         input['image'], input['condition_img'] = self.hflip(input['image'], input['condition_img'])
