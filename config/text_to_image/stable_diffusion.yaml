@@ -28,6 +28,10 @@ trainer:
       version: null
       prefix: ''
       flush_logs_every_n_steps: 100
+  #- class_path: lightning.pytorch.loggers.WandbLogger
+  #  init_args:
+  #    save_dir: lightning_logs
+  #    project: lightning_logs
   callbacks:
   - class_path: lightning_diffusion.callback.VisualizationCallback
     init_args:

@@ -1,6 +1,7 @@
 import lightning as L
 from lightning.pytorch.loggers.logger import Logger
-from lightning.pytorch.loggers import TensorBoardLogger, CSVLogger
+from lightning.pytorch.loggers import TensorBoardLogger, CSVLogger, WandbLogger
+from lightning.pytorch.utilities import rank_zero_only
 import numpy as np
 from typing import Any
 
@@ -19,15 +20,18 @@ class VisualizationCallback(L.Callback):
         self.height = height
         self.width = width
 
+    @rank_zero_only
     def on_train_start(self, trainer, pl_module):
         self.generate_and_log(trainer, pl_module)
 
+    @rank_zero_only
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
         if self.by_epoch:
             return
         if (trainer.global_step + 1) % self.interval == 0:
             self.generate_and_log(trainer, pl_module)
 
+    @rank_zero_only
     def on_train_epoch_end(self, trainer, pl_module):
         if self.by_epoch and (trainer.current_epoch + 1) % self.interval == 0:
             self.generate_and_log(trainer, pl_module)
@@ -38,6 +42,11 @@ class VisualizationCallback(L.Callback):
                                          images, 
                                          steps, 
                                          dataformats='NHWC')
+        elif isinstance(logger, WandbLogger):
+            logger.log_image(key="generated_images",
+                                        images=[i for i in images],
+                                        step=steps)
+            pass
         elif isinstance(logger, CSVLogger):
             pass
         else:
