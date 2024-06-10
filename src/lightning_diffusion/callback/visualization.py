@@ -46,7 +46,6 @@ class VisualizationCallback(L.Callback):
             logger.log_image(key="generated_images",
                                         images=[i for i in images],
                                         step=steps)
-            pass
         elif isinstance(logger, CSVLogger):
             pass
         else:
