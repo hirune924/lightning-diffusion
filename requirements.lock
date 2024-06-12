@@ -15,6 +15,7 @@ antlr4-python3-runtime==4.9.3
 attrs==23.2.0
 beautifulsoup4==4.12.3
 bitsandbytes==0.41.0
+braceexpand==0.1.7
 bs4==0.0.2
 certifi==2024.2.2
 charset-normalizer==3.3.2
@@ -44,6 +45,7 @@ jsonargparse==4.28.0
 kiwisolver==1.4.5
 lightning==2.2.4
 lightning-utilities==0.11.2
+loguru==0.7.2
 markdown==3.6
 markdown-it-py==3.0.0
 markupsafe==2.1.5
@@ -111,6 +113,7 @@ tzdata==2024.1
 urllib3==2.2.1
 wandb==0.17.1
 wcwidth==0.2.13
+webdataset==0.2.86
 werkzeug==3.0.3
 xxhash==3.4.1
 yarl==1.9.4

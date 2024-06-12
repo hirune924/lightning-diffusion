@@ -7,11 +7,15 @@ python scripts/main.py fit --help
 ```
 ### Make config
 ```sh
-python scripts/main.py fit --print_config
+python scripts/main.py fit --model=StableDiffusionModule --data=HFDataModule --print_config
 ```
 ### Train
 ```sh
 python scripts/main.py fit -c 'your config path'
+```
+### Pre-compute embs
+```sh
+python scripts/precompute.py -c config/text_to_image/stable_diffusion.yaml --wds_save_dir=/home/n_ohta/data_cache --repeat=10
 ```
 
 ### TODO
