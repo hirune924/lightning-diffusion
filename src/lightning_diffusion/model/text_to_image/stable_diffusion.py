@@ -213,7 +213,6 @@ class StableDiffusionModulePrecompute(L.LightningModule):
             safety_checker=None,
             requires_safety_checker=False,
         ).to(self.device)
-        pipeline.to(torch.float16 if self.device != torch.device("cpu") else torch.float32)
         pipeline.set_progress_bar_config(disable=True)
         images = []
         for p in prompt:
@@ -256,7 +255,7 @@ class StableDiffusionModulePrecompute(L.LightningModule):
             noisy_latents,
             timesteps,
             encoder_hidden_states=encoder_hidden_states).sample
-        
+
         if self.scheduler.config.prediction_type == "epsilon":
             gt = noise
         elif self.scheduler.config.prediction_type == "v_prediction":

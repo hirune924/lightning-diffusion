@@ -15,17 +15,17 @@ python scripts/main.py fit -c 'your config path'
 ```
 ### Pre-compute embs
 ```sh
-python scripts/precompute.py -c config/text_to_image/stable_diffusion.yaml --wds_save_dir=/home/n_ohta/data_cache --repeat=10
+python scripts/precompute.py -c config/text_to_image/stable_diffusion.yaml --wds_save_dir=../data_cache --repeat=10
 ```
 
 ### TODO
 * high priority
-    * pre-compute-embs
     * dreambooth
     * lcm, (dmd, pcm)
 * other
     * upscale
     * stable cascade
+    * stable diffusion 3
     * HDiT
     * t2i-adapter
     * textual-inversion
