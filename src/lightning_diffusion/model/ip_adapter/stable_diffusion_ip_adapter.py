@@ -6,7 +6,7 @@ from diffusers.models.embeddings import ImageProjection, IPAdapterPlusImageProje
 from transformers import CLIPTextModel, CLIPTokenizer, CLIPVisionModelWithProjection
 import numpy as np
 from peft import get_peft_model, LoraConfig
-from lightning_diffusion.model.utils.ip_adapter import set_unet_ip_adapter, process_ip_adapter_state_dict
+from lightning_diffusion.model.ip_adapter.utils.ip_adapter import set_unet_ip_adapter, process_ip_adapter_state_dict
 from PIL import Image
 from diffusers.utils import load_image
 from transformers import AutoProcessor, CLIPImageProcessor

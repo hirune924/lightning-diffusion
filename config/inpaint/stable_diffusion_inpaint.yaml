@@ -41,6 +41,11 @@ trainer:
       width: null
       by_epoch: true
     dict_kwargs:
+      prompt:
+      - shs
+      - shs
+      - shs
+      - shs
       image:
       - 'https://lambdalabs.com/hs-fs/hubfs/2.%20Images/Images%20-%20Blog%20Posts/2022%20-%20Blog%20Images/image-1-1.png'
       - 'https://lambdalabs.com/hs-fs/hubfs/2.%20Images/Images%20-%20Blog%20Posts/2022%20-%20Blog%20Images/image-1-1.png'

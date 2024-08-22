@@ -31,15 +31,16 @@ trainer:
   callbacks:
   - class_path: lightning_diffusion.callback.VisualizationCallback
     init_args:
+      interval: 1
+      height: null
+      width: null
+      by_epoch: true
+    dict_kwargs:
       prompt:
       - woman
       - boy
       - dog
       - apple
-      interval: 1
-      height: null
-      width: null
-      by_epoch: true
   - class_path: lightning.pytorch.callbacks.LearningRateMonitor
     init_args:
       logging_interval: null

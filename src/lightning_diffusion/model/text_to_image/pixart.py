@@ -6,7 +6,7 @@ from transformers import T5EncoderModel, T5Tokenizer
 from transformers import CLIPTextModel, CLIPTokenizer
 import numpy as np
 from peft import get_peft_model, LoraConfig
-from lightning_diffusion.model.utils.pixart import discretized_gaussian_log_likelihood
+from lightning_diffusion.model.text_to_image.utils.pixart import discretized_gaussian_log_likelihood
 
 class PixArtModule(L.LightningModule):
     def __init__(self, 

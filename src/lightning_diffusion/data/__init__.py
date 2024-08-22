@@ -4,4 +4,4 @@ from .hf_datasets import *
 from .hf_modules import *
 from .wds_datasets import *
 from .wds_modules import *
-
+from .animate_anyone.dataset import *

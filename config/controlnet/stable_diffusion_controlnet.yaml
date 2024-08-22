@@ -31,16 +31,16 @@ trainer:
   callbacks:
   - class_path: lightning_diffusion.callback.VisualizationCallback
     init_args:
-      prompt:
-      - "cyan circle with brown floral background"
-      - "cyan circle with brown floral background"
-      - "cyan circle with brown floral background"
-      - "cyan circle with brown floral background"
       interval: 1
       height: null
       width: null
       by_epoch: true
     dict_kwargs:
+      prompt:
+      - "cyan circle with brown floral background"
+      - "cyan circle with brown floral background"
+      - "cyan circle with brown floral background"
+      - "cyan circle with brown floral background"
       condition_image:
       - 'https://github.com/okotaku/diffengine/assets/24734142/1af9dbb0-b056-435c-bc4b-62a823889191'
       - 'https://github.com/okotaku/diffengine/assets/24734142/1af9dbb0-b056-435c-bc4b-62a823889191'
