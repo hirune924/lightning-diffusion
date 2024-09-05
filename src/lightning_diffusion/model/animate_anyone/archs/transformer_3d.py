@@ -155,7 +155,7 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
 
                     return custom_forward
 
-                # if hasattr(self.block, 'bank') and len(self.block.bank) > 0:
+                #if hasattr(self.block, 'bank') and len(self.block.bank) > 0:
                 #     hidden_states
                 hidden_states = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(block),
@@ -165,7 +165,7 @@ class Transformer3DModel(ModelMixin, ConfigMixin):
                     attention_mask=None,
                     video_length=video_length,
                     self_attention_additional_feats=self_attention_additional_feats,
-                    mode=mode,
+                    mode=mode
                 )
             else:
 

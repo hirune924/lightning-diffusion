@@ -183,7 +183,6 @@ class AnimateAnyonePose2ImgModule(L.LightningModule):
         torch.cuda.empty_cache()
         self.vae.to(dtype=orig_dtype)
         self.image_enc.to(dtype=orig_dtype)
-
         return images
 
     def training_step(self, batch, batch_idx):
@@ -268,7 +267,8 @@ class AnimateAnyonePose2VidModule(L.LightningModule):
         sched_kwargs = dict(num_train_timesteps=1000,
                     beta_start=0.00085,
                     beta_end=0.012,
-                    beta_schedule="scaled_linear",
+                    #beta_schedule="scaled_linear",
+                    beta_schedule="linear",
                     steps_offset=1,
                     clip_sample=False)
         if self.enable_zero_snr:
@@ -311,7 +311,7 @@ class AnimateAnyonePose2VidModule(L.LightningModule):
         
         self.pose_guider = PoseGuider(
             conditioning_embedding_channels=320,
-            block_out_channels=(16, 32, 96, 256)
+            block_out_channels=(16, 32, 64, 128)
         )
 
         self.denoising_unet = load_pytorch_model(stage1_ckpt, self.denoising_unet, ignore_suffix="denoising_unet")
@@ -370,7 +370,7 @@ class AnimateAnyonePose2VidModule(L.LightningModule):
               ) -> list[np.ndarray]:
         generator = torch.Generator().manual_seed(42)
         orig_dtype = self.denoising_unet.dtype
-        self.denoising_unet.to(dtype=torch.float16)
+        self.denoising_unet.to(dtype=torch.float32)
         pipe = Pose2VideoPipeline(
             vae=self.vae,
             image_encoder=self.image_enc,
@@ -388,7 +388,7 @@ class AnimateAnyonePose2VidModule(L.LightningModule):
             
             vid = pipe(
                 ref_image_pil,
-                [Image.fromarray(frame) for frame in pose_frame],
+                [Image.fromarray(frame) for frame in pose_frame.asnumpy()],
                 width,
                 height,
                 clip_length,
@@ -410,7 +410,7 @@ class AnimateAnyonePose2VidModule(L.LightningModule):
         return results
 
     def training_step(self, batch, batch_idx):
-        num_batches = len(batch["img"])
+        num_batches = len(batch["pixel_values_vid"])
         self.reference_control_reader.clear()
         self.reference_control_writer.clear()
         

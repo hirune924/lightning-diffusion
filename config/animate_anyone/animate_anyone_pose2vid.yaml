@@ -2,14 +2,14 @@
 seed_everything: true
 trainer:
   accelerator: auto
-  strategy: auto
+  strategy: ddp_find_unused_parameters_true
   devices: auto
   num_nodes: 1
   precision: bf16-mixed
   logger:
   - class_path: lightning.pytorch.loggers.TensorBoardLogger
     init_args:
-      save_dir: ${trainer.default_root_dir}
+      save_dir: lightning_logs
       name: tb_logs
       version: null
       log_graph: false
@@ -29,7 +29,7 @@ trainer:
       log_weight_decay: false
   - class_path: lightning.pytorch.callbacks.ModelCheckpoint
     init_args:
-      dirpath: ${trainer.default_root_dir}/ckpt
+      dirpath: lightning_logs/ckpt
       filename: null
       monitor: train_loss
       verbose: false
@@ -43,18 +43,21 @@ trainer:
       every_n_epochs: null
       save_on_train_epoch_end: null
       enable_version_counter: true
-  - class_path: lightning_diffusion.callback.VisualizationCallback
+  - class_path: lightning_diffusion.callback.VisualizeVideoCallback
     init_args:
+      save_dir: lightning_logs/videos
       interval: 100
       height: 512
       width: 512
       by_epoch: false
     dict_kwargs:
-      pose_img:
-        - 'data/pose.png'
-        - 'data/pose.png'
-        - 'data/pose.png'
-        - 'data/pose.png'
+      clip_length: 24
+      num_inference_steps: 20
+      pose_vid:
+        - 'data/pose.mp4'
+        - 'data/pose.mp4'
+        - 'data/pose.mp4'
+        - 'data/pose.mp4'
         # 'https://raw.githubusercontent.com/MooreThreads/Moore-AnimateAnyone/master/configs/inference/pose_images/pose-1.png'
       ref_img:
         - 'https://raw.githubusercontent.com/MooreThreads/Moore-AnimateAnyone/master/configs/inference/ref_images/anyone-1.png'
@@ -93,21 +96,24 @@ trainer:
   plugins: null
   sync_batchnorm: false
   reload_dataloaders_every_n_epochs: 0
-  default_root_dir: ${oc.env:LOGDIR}
+  default_root_dir: lightning_logs
 ckpt_path: null
 model:
-  class_path: AnimateAnyonePose2ImgModule
+  class_path: AnimateAnyonePose2VidModule
   init_args:
-    base_model: lambdalabs/sd-image-variations-diffusers
-    gradient_checkpointing: true
+    stage1_ckpt: 
     ucg_rate: 0.1
     noise_offset: 0.05
+    snr_gamma: 5.0
+    enable_zero_snr: true
 data:
-  class_path: AnimateAnyonePose2ImgDataModule
+  class_path: AnimateAnyonePose2VidDataModule
   init_args:
     data_path: ../ubc_fashon_meta.jsonl
-    batch_size: 4
+    batch_size: 1
     num_workers: 4
     dataset_args:
-      img_size: 512
-      sample_margin: 30
+      sample_rate: 4
+      n_sample_frames: 24
+      width: 512
+      height: 512

@@ -5,6 +5,8 @@ from lightning.pytorch.utilities import rank_zero_only
 import numpy as np
 from typing import Any
 from diffusers.utils import export_to_video
+import os 
+from PIL import Image
 
 class VisualizationCallback(L.Callback):
     def __init__(self,
@@ -76,6 +78,7 @@ class VisualizeVideoCallback(L.Callback):
         self.height = height
         self.width = width
         self.save_dir = save_dir
+        os.makedirs(self.save_dir, exist_ok=True)
 
     @rank_zero_only
     def on_train_start(self, trainer, pl_module):
@@ -100,4 +103,13 @@ class VisualizeVideoCallback(L.Callback):
             **self.kwargs)
         
         for idx, v in enumerate(videos):
-            export_to_video(v, f"{self.save_dir}/video_{idx}_{trainer.global_step}.mp4", fps=8)
+            export_to_video([Image.fromarray(frame) for frame in v], f"{self.save_dir}/video_{idx}_{trainer.global_step}.mp4", fps=8)
+            #pil_images = [Image.fromarray(frame) for frame in v]
+            #pil_images[0].save(
+            #    fp=f"{self.save_dir}/video_{idx}_{trainer.global_step}.gif",
+            #    format="GIF",
+            #    append_images=pil_images[1:],
+            #    save_all=True,
+            #    duration=(1 / 8 * 1000),
+            #    loop=0,
+            #)

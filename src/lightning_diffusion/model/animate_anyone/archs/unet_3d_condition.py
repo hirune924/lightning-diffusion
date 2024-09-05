@@ -614,9 +614,10 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
         motion_module_path = Path(motion_module_path)
         if not pretrained_model_path.exists():
             pretrained_model_path = Path(snapshot_download(repo_id=str(pretrained_model_path)))
-        if not motion_module_path.exists() and not motion_module_path != "":
+        if not motion_module_path.exists() and motion_module_path != "":
             motion_module_path = Path(snapshot_download(repo_id=str(motion_module_path)))
-            motion_module_path = motion_module_path / "mm_sd_v15_v2.ckpt"
+            #motion_module_path = motion_module_path / "mm_sd_v15_v2.ckpt"
+            motion_module_path = motion_module_path / "motion_module.pth"
         if subfolder is not None:
             pretrained_model_path = pretrained_model_path.joinpath(subfolder)
         logger.info(
