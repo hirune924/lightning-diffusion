@@ -249,3 +249,19 @@ class HFStableDiffusionInpaintDataset(HFImageTextDataset):
         input['masked_image'] = input["image"] * (input["mask"] < 0.5)
         input['text'] = 'shs'
         return input
+    
+class HFFluxDataset(HFImageTextDataset):
+    def init_post_process(self, image_size: int = 512):
+        self.transform = v2.Compose([
+            v2.ToImage(),  # Convert to tensor, only needed if you had a PIL image
+            v2.ToDtype(torch.uint8, scale=True),
+            v2.Resize(size=image_size, interpolation=v2.InterpolationMode.BILINEAR),
+            v2.RandomCrop(size=512),
+            v2.RandomHorizontalFlip(),
+            #v2.ToTensor(),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=[0.5], std=[0.5]),
+        ])
+    def post_process(self, input: dict[str: Any]):
+        input['image'] = self.transform(input['image'])
+        return input

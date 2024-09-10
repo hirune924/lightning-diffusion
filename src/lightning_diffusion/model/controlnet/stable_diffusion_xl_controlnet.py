@@ -53,7 +53,7 @@ class StableDiffusionXLControlnetModule(L.LightningModule):
         self.train()
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=1e-4, weight_decay=1e-2)
+        optimizer = torch.optim.AdamW(self.parameters(), lr=1e-5, weight_decay=1e-2)
         return optimizer
 
     @torch.inference_mode()

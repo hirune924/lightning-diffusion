@@ -1,6 +1,7 @@
 from .text_to_image.stable_diffusion import *
 from .text_to_image.stable_diffusion_xl import *
 from .text_to_image.pixart import *
+from .text_to_image.flux import *
 from .ip_adapter.stable_diffusion_ip_adapter import *
 from .ip_adapter.stable_diffusion_xl_ip_adapter import *
 from .controlnet.stable_diffusion_controlnet import *
