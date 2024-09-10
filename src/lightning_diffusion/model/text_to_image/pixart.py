@@ -1,7 +1,7 @@
 import lightning as L
 import torch
 import torch.nn.functional as F
-from diffusers import AutoencoderKL, DDPMScheduler, Transformer2DModel, PixArtAlphaPipeline, PixArtSigmaPipeline
+from diffusers import AutoencoderKL, DDPMScheduler, PixArtTransformer2DModel, PixArtAlphaPipeline, PixArtSigmaPipeline
 from transformers import T5EncoderModel, T5Tokenizer
 from transformers import CLIPTextModel, CLIPTokenizer
 import numpy as np
@@ -34,7 +34,7 @@ class PixArtModule(L.LightningModule):
         self.text_encoder = T5EncoderModel.from_pretrained(pretrained_model_name_or_path=base_model,
                                                           subfolder="text_encoder")
         self.vae = AutoencoderKL.from_pretrained(pretrained_model_name_or_path=base_model, subfolder="vae")
-        self.transformer = Transformer2DModel.from_pretrained(pretrained_model_name_or_path=base_transformer,
+        self.transformer = PixArtTransformer2DModel.from_pretrained(pretrained_model_name_or_path=base_transformer,
                                                               use_additional_conditions=use_resolution,
                                                               subfolder="transformer")
         
