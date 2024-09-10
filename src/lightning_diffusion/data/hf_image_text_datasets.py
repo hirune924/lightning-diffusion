@@ -256,7 +256,7 @@ class HFFluxDataset(HFImageTextDataset):
             v2.ToImage(),  # Convert to tensor, only needed if you had a PIL image
             v2.ToDtype(torch.uint8, scale=True),
             v2.Resize(size=image_size, interpolation=v2.InterpolationMode.BILINEAR),
-            v2.RandomCrop(size=512),
+            v2.RandomCrop(size=image_size),
             v2.RandomHorizontalFlip(),
             #v2.ToTensor(),
             v2.ToDtype(torch.float32, scale=True),

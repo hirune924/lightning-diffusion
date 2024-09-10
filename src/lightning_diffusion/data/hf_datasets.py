@@ -8,7 +8,7 @@ import datasets as hfd
 from torch.utils.data import Dataset
 from torchvision.transforms import v2
 from typing import Any
-from lightning_diffusion.data.transforms import RandomCropWithInfo, ComputeTimeIds
+from lightning_diffusion.data.transforms import RandomCropWithInfo, ComputeTimeIds, T5TextPreprocess
 from transformers import AutoProcessor
 from diffusers.utils import load_image
 
@@ -128,5 +128,32 @@ class HFStableDiffusionXLControlnetDataset(HFGeneralDataset):
         size_info['original_img_shape'] = original_img_shape
         input["time_ids"] = self.time_ids(input['image'], size_info)
         input['image'], input['condition_img'] = self.normalize(input['image'], input['condition_img'])
+        
+        return input
+    
+class HFFluxControlnetDataset(HFGeneralDataset):
+    def init_post_process(self, image_size: int = 512):
+        self.transform = v2.Compose([
+            v2.ToImage(),  # Convert to tensor, only needed if you had a PIL image
+            v2.ToDtype(torch.uint8, scale=True),
+            v2.Resize(size=image_size, interpolation=v2.InterpolationMode.BILINEAR),
+            v2.RandomCrop(size=image_size),
+            v2.RandomHorizontalFlip(),
+            #v2.ToTensor(),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=[0.5], std=[0.5]),
+        ])
+
+    def post_process(self, input: dict[str: Any]):
+        if isinstance(input["image"], str):
+            input["image"] = load_image(os.path.join(self.dataset_name, input["image"]))
+        input["image"].convert('RGB')
+        if isinstance(input["condition_img"], str):
+            input["condition_img"] = load_image(os.path.join(self.dataset_name, input["condition_img"]))
+        input["condition_img"].convert('RGB')
+        if isinstance(input["text"], list | np.ndarray):
+            input["text"] = random.choice(input["text"])
+
+        input['image'], input['condition_img'] = self.transform(input['image'], input['condition_img'])
         
         return input

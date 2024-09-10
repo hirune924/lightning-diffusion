@@ -26,6 +26,7 @@ dependencies = [
     "loguru>=0.7.2",
     "decord>=0.6.0",
     "einops>=0.8.0",
+    "deepspeed>=0.15.1",
 ]
 readme = "README.md"
 requires-python = ">= 3.11"
