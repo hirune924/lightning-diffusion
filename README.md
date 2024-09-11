@@ -17,11 +17,32 @@ python scripts/main.py fit -c 'your config path'
 ```sh
 python scripts/precompute.py -c config/text_to_image/stable_diffusion.yaml --wds_save_dir=../data_cache --repeat=10
 ```
+## Implemented
+* Stable Diffusion
+    * LoRA
+    * ControlNet
+    * inpaint
+    * ip adapter
+* Stable Diffusion XL
+    * LoRA
+    * ControlNet
+    * ip adapter
+* PixArt
+    * LoRA
+    * ControlNet
+* Flux
+    * LoRA
+    * ControlNet
+* AnymateAnyone
+    * stage1/2
 
 ### TODO
 * high priority
+    * aspect ratio bucketing
+    * save part of checkpoint
     * dreambooth
     * lcm, (dmd, pcm)
+    * pixart inpaint/img2img pipeline
 * other
     * upscale
     * stable cascade
@@ -32,8 +53,6 @@ python scripts/precompute.py -c config/text_to_image/stable_diffusion.yaml --wds
     * deepfloyd
     * prompt-free diffusion
     * esd
-    * aspect ratio bucketing
-    * save part of checkpoint
     * tips from kohya-ss/sd-scripts
     * video, 3d, ... generation
 

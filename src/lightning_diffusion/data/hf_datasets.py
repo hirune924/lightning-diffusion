@@ -157,3 +157,28 @@ class HFFluxControlnetDataset(HFGeneralDataset):
         input['image'], input['condition_img'] = self.transform(input['image'], input['condition_img'])
         
         return input
+    
+class HFPixArtControlnetDataset(HFGeneralDataset):
+    def init_post_process(self):
+        self.resize = v2.Resize(size=512, interpolation=v2.InterpolationMode.BILINEAR)
+        self.hflip = v2.RandomHorizontalFlip(p=0.5)
+        self.random_crop = RandomCropWithInfo(size=512)
+        self.time_ids = ComputeTimeIds()
+        self.normalize = v2.Compose([
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=[0.5], std=[0.5]),
+        ])
+        self.t5_preprocess = T5TextPreprocess(clean_caption=True)
+
+    def post_process(self, input: dict[str: Any]):
+        input['resolution'] =  [float(input['image'].height), float(input['image'].width)]
+        input['image'], input['condition_img'] = self.resize(input['image'], input['condition_img'])
+        input['image'], input['condition_img'] = self.hflip(input['image'], input['condition_img'])
+        (input['image'], input['condition_img']), size_info = self.random_crop([input['image'], input['condition_img']])
+        input['aspect_ratio'] = input['image'].height / input['image'].width
+
+        input['image'], input['condition_img'] = self.normalize(input['image'], input['condition_img'])
+        input['text'] = self.t5_preprocess(input['text'])
+        
+        return input

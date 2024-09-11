@@ -115,6 +115,9 @@ class StableDiffusionXLControlnetModule(L.LightningModule):
             padding="max_length",
             truncation=True,
             return_tensors="pt").input_ids.to(self.device)
+
+        prompt_embeds, pooled_prompt_embeds = self.encode_prompt(
+                batch["text_one"], batch["text_two"])
         
         latents = self.vae.encode(batch["image"]).latent_dist.sample() * self.vae.config.scaling_factor
         noise = torch.randn_like(latents, device=self.device)
@@ -131,9 +134,6 @@ class StableDiffusionXLControlnetModule(L.LightningModule):
             noisy_latents = self.scheduler.add_noise(latents, new_noise, timesteps)
         else:
             noisy_latents = self.scheduler.add_noise(latents, noise, timesteps)
-
-        prompt_embeds, pooled_prompt_embeds = self.encode_prompt(
-                batch["text_one"], batch["text_two"])
         
         if self.ucg_rate > 0:
             mask = torch.multinomial(
