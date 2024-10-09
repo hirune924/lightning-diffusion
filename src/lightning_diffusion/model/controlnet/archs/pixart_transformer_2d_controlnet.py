@@ -134,11 +134,11 @@ class PixArtTransformer2DControlNet(PixArtTransformer2DModel):
 
             # controlnet residual
             if controlnet_block_samples is not None:
-                interval_control = len(self.transformer_blocks) / len(controlnet_block_samples)
-                interval_control = int(np.ceil(interval_control))
-                hidden_states = hidden_states + controlnet_block_samples[index_block // interval_control]
-                #if index_block < len(controlnet_block_samples):
-                #    hidden_states = hidden_states + controlnet_block_samples[index_block]
+                #interval_control = len(self.transformer_blocks) / len(controlnet_block_samples)
+                #interval_control = int(np.ceil(interval_control))
+                #hidden_states = hidden_states + controlnet_block_samples[index_block // interval_control]
+                if index_block < len(controlnet_block_samples):
+                    hidden_states = hidden_states + controlnet_block_samples[index_block]
         # 3. Output
         shift, scale = (
             self.scale_shift_table[None] + embedded_timestep[:, None].to(self.scale_shift_table.device)

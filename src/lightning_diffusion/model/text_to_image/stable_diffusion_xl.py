@@ -1,3 +1,4 @@
+from typing import Any
 import lightning as L
 import torch
 import torch.nn.functional as F
@@ -9,7 +10,7 @@ from peft import get_peft_model, LoraConfig
 class StableDiffusionXLModule(L.LightningModule):
     def __init__(self, 
                  base_model: str = "stabilityai/stable-diffusion-xl-base-1.0", 
-                 train_mode: str = "unet_attn",
+                 train_mode: str = "unet_lora",
                  gradient_checkpointing: bool = False,
                  ucg_rate: float = 0.0,
                  input_perturbation_gamma: float = 0.0,
@@ -219,3 +220,18 @@ class StableDiffusionXLModule(L.LightningModule):
         prompt_embeds = torch.concat(prompt_embeds_list, dim=-1)
         pooled_prompt_embeds = pooled_prompt_embeds.view(bs_embed, -1)
         return prompt_embeds, pooled_prompt_embeds
+
+    def on_save_checkpoint(self, checkpoint: dict[str, Any]) -> None:
+        from diffusers.utils import convert_state_dict_to_diffusers
+        from peft.utils import get_peft_model_state_dict
+        unet_lora_layers_to_save = convert_state_dict_to_diffusers(get_peft_model_state_dict(self.unet))
+        StableDiffusionXLPipeline.save_lora_weights(
+                f'{self.trainer.default_root_dir}/lora_weight/step_{self.global_step}',
+                unet_lora_layers=unet_lora_layers_to_save
+        )
+        # save only unet parameters
+        list_keys = list(checkpoint['state_dict'].keys())
+        for k in list_keys:
+            if not k.startswith("unet."):
+                del checkpoint['state_dict'][k]
+        

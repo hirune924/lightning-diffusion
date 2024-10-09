@@ -113,11 +113,11 @@ data:
   init_args:
     dataset_name: fusing/fill50k
     cache_dir: null
-    batch_size: 1
+    batch_size: 2
     num_workers: 4
     dataset_cls: lightning_diffusion.data.HFFluxControlnetDataset
     dataset_args:
       column_map: {"image": "image", "condition_img": "conditioning_image", "text": "text"}
       csv: metadata.csv
     dataset_process_args:
-      image_size: 512
+      image_size: 1024

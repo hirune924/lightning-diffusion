@@ -40,7 +40,7 @@ from diffusers.pipelines.pixart_alpha.pipeline_pixart_alpha import (
     ASPECT_RATIO_1024_BIN,
 )
 from lightning_diffusion.model.controlnet.archs.pixart_transformer_2d_controlnet import PixArtTransformer2DControlNet
-from lightning_diffusion.model.controlnet.archs.controlnet_pixart import PixArtTransformer2DControlNetModel
+from lightning_diffusion.model.controlnet.archs.controlnet_pixart import PixArtTransformer2DControlNetModel, PixArtTransformer2DControlNetNoVAEModel
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 if is_bs4_available():
@@ -204,7 +204,7 @@ class PixArtSigmaControlNetPipeline(DiffusionPipeline):
         vae: AutoencoderKL,
         transformer: PixArtTransformer2DControlNet,
         scheduler: KarrasDiffusionSchedulers,
-        controlnet: PixArtTransformer2DControlNetModel,
+        controlnet: PixArtTransformer2DControlNetModel | PixArtTransformer2DControlNetNoVAEModel,
     ):
         super().__init__()
 
@@ -823,7 +823,7 @@ class PixArtSigmaControlNetPipeline(DiffusionPipeline):
 
 
         ## Add for ControlNet
-        if isinstance(self.controlnet, PixArtTransformer2DControlNetModel):
+        if isinstance(self.controlnet, (PixArtTransformer2DControlNetModel, PixArtTransformer2DControlNetNoVAEModel)):
             control_image = self.prepare_image(
                 image=control_image,
                 width=width,
@@ -836,13 +836,11 @@ class PixArtSigmaControlNetPipeline(DiffusionPipeline):
                 guess_mode=False,
             )
             height, width = control_image.shape[-2:]
-
-            control_image = self.vae.encode(control_image).latent_dist.sample()
-            control_image = control_image * self.vae.config.scaling_factor
-
+            if isinstance(self.controlnet, PixArtTransformer2DControlNetModel):
+                control_image = self.vae.encode(control_image).latent_dist.sample()
+                control_image = control_image * self.vae.config.scaling_factor
         else:
             assert False
-
         # 4. Prepare timesteps
         timesteps, num_inference_steps = retrieve_timesteps(
             self.scheduler, num_inference_steps, device, timesteps, sigmas
@@ -901,7 +899,6 @@ class PixArtSigmaControlNetPipeline(DiffusionPipeline):
                     controlnet_cond=control_image,
                     conditioning_scale=controlnet_conditioning_scale,
                 )[0]
-
                 # predict noise model_output
                 noise_pred = self.transformer(
                     latent_model_input,

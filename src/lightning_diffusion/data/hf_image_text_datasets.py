@@ -8,7 +8,7 @@ import datasets as hfd
 from torch.utils.data import Dataset
 from torchvision.transforms import v2
 from typing import Any
-from lightning_diffusion.data.transforms import RandomCropWithInfo, ComputeTimeIds, T5TextPreprocess, GenerateRandomMask
+from lightning_diffusion.data.transforms import RandomCropWithInfo, ComputeTimeIds, T5TextPreprocess, GenerateRandomMask, MultiAspectRatioResizeCenterCropWithInfo
 from transformers import AutoProcessor
 
 class HFImageTextDataset(Dataset):
@@ -27,6 +27,7 @@ class HFImageTextDataset(Dataset):
                  image_column: str = "image",
                  caption_column: str = "text",
                  csv: str = "metadata.csv",
+                 repeat: int = 1,
                  cache_dir: str | None = None) -> None:
         self.dataset_name = dataset
         if Path(dataset).exists():
@@ -38,6 +39,8 @@ class HFImageTextDataset(Dataset):
             # load huggingface online
             self.dataset = hfd.load_dataset(dataset, cache_dir=cache_dir)["train"]
 
+        if repeat > 1:
+            self.dataset = hfd.concatenate_datasets([self.dataset] * repeat)
         self.image_column = image_column
         self.caption_column = caption_column
 
@@ -102,10 +105,17 @@ class HFStableDiffusionDataset(HFImageTextDataset):
         return input
 
 class HFStableDiffusionXLDataset(HFImageTextDataset):
-    def init_post_process(self):
+    def init_post_process(self, multi_aspect: bool = True):
+        self.multi_aspect = multi_aspect
         self.resize = v2.Resize(size=1024, interpolation=v2.InterpolationMode.BILINEAR)
         self.hflip = v2.RandomHorizontalFlip(p=0.5)
-        self.random_crop = RandomCropWithInfo(size=1024)
+        if multi_aspect:
+            self.random_crop = MultiAspectRatioResizeCenterCropWithInfo(sizes=[
+                [640, 1536], [768, 1344], [832, 1216], [896, 1152],
+                [1024, 1024], [1152, 896], [1216, 832], [1344, 768], [1536, 640]
+                ])
+        else:
+            self.random_crop = RandomCropWithInfo(size=1024)
         self.time_ids = ComputeTimeIds()
         self.normalize = v2.Compose([
             v2.ToImage(),
@@ -117,7 +127,10 @@ class HFStableDiffusionXLDataset(HFImageTextDataset):
         original_img_shape =  [input['image'].height, input['image'].width]
         input['image'] = self.resize(input['image'])
         input['image'] = self.hflip(input['image'])
-        input['image'], size_info = self.random_crop(input['image'])
+        if self.multi_aspect:
+            input['image'], input['bucket_id'], size_info = self.random_crop(input['image'])
+        else:
+            input['image'], size_info = self.random_crop(input['image'])
         size_info['original_img_shape'] = original_img_shape
         input["time_ids"] = self.time_ids(input['image'], size_info)
         input['image'] = self.normalize(input['image'])

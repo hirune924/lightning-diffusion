@@ -25,8 +25,15 @@ annotated-types==0.7.0
 antlr4-python3-runtime==4.9.3
     # via hydra-core
     # via omegaconf
+anyio==4.4.0
+    # via httpx
+    # via openai
+asttokens==2.4.1
+    # via stack-data
 attrs==23.2.0
     # via aiohttp
+autogen==0.3.0
+    # via lightning-diffusion
 beautifulsoup4==4.12.3
     # via bs4
 bitsandbytes==0.41.0
@@ -36,33 +43,49 @@ braceexpand==0.1.7
 bs4==0.0.2
     # via lightning-diffusion
 certifi==2024.2.2
+    # via httpcore
+    # via httpx
     # via requests
     # via sentry-sdk
 charset-normalizer==3.3.2
     # via requests
 click==8.1.7
     # via wandb
+comm==0.2.2
+    # via ipykernel
 contourpy==1.2.1
     # via matplotlib
 cycler==0.12.1
     # via matplotlib
 datasets==2.19.0
     # via lightning-diffusion
+debugpy==1.8.6
+    # via ipykernel
+decorator==5.1.1
+    # via ipython
 decord==0.6.0
     # via lightning-diffusion
 deepspeed==0.15.1
     # via lightning-diffusion
-diffusers @ git+https://github.com/huggingface/diffusers@f28a8c257afe8eeb16b4deb973c6b1829f6aea59
+diffusers @ git+https://github.com/huggingface/diffusers@7f323f0f3190533e596e09a4923dad1f73f23a91
     # via lightning-diffusion
 dill==0.3.8
     # via datasets
     # via multiprocess
+diskcache==5.6.3
+    # via autogen
+distro==1.9.0
+    # via openai
+docker==7.1.0
+    # via autogen
 docker-pycreds==0.4.0
     # via wandb
 docstring-parser==0.16
     # via jsonargparse
 einops==0.8.0
     # via lightning-diffusion
+executing==2.1.0
+    # via stack-data
 filelock==3.14.0
     # via datasets
     # via diffusers
@@ -70,6 +93,8 @@ filelock==3.14.0
     # via torch
     # via transformers
     # via triton
+flaml==2.2.0
+    # via autogen
 fonttools==4.51.0
     # via matplotlib
 frozenlist==1.4.1
@@ -89,8 +114,14 @@ gitpython==3.1.43
     # via wandb
 grpcio==1.63.0
     # via tensorboard
+h11==0.14.0
+    # via httpcore
 hjson==3.1.0
     # via deepspeed
+httpcore==1.0.5
+    # via httpx
+httpx==0.27.2
+    # via openai
 huggingface-hub==0.23.3
     # via accelerate
     # via datasets
@@ -101,16 +132,30 @@ huggingface-hub==0.23.3
 hydra-core==1.3.2
     # via lightning
 idna==3.7
+    # via anyio
+    # via httpx
     # via requests
     # via yarl
 importlib-metadata==7.1.0
     # via diffusers
 importlib-resources==6.4.0
     # via typeshed-client
+ipykernel==6.29.5
+ipython==8.28.0
+    # via ipykernel
+jedi==0.19.1
+    # via ipython
 jinja2==3.1.3
     # via torch
+jiter==0.5.0
+    # via openai
 jsonargparse==4.28.0
     # via lightning
+jupyter-client==8.6.3
+    # via ipykernel
+jupyter-core==5.7.2
+    # via ipykernel
+    # via jupyter-client
 kiwisolver==1.4.5
     # via matplotlib
 lightning==2.2.4
@@ -130,6 +175,9 @@ markupsafe==2.1.5
     # via werkzeug
 matplotlib==3.8.4
     # via lightning
+matplotlib-inline==0.1.7
+    # via ipykernel
+    # via ipython
 mdurl==0.1.2
     # via markdown-it-py
 mpmath==1.3.0
@@ -139,17 +187,21 @@ multidict==6.0.5
     # via yarl
 multiprocess==0.70.16
     # via datasets
+nest-asyncio==1.6.0
+    # via ipykernel
 networkx==3.3
     # via torch
 ninja==1.11.1.1
     # via deepspeed
 numpy==1.26.4
     # via accelerate
+    # via autogen
     # via contourpy
     # via datasets
     # via decord
     # via deepspeed
     # via diffusers
+    # via flaml
     # via lightning
     # via matplotlib
     # via opencv-python
@@ -196,14 +248,18 @@ omegaconf==2.3.0
     # via hydra-core
     # via lightning
     # via lightning-diffusion
+openai==1.45.1
+    # via autogen
 opencv-python==4.9.0.80
     # via lightning-diffusion
 packaging==24.0
     # via accelerate
+    # via autogen
     # via datasets
     # via deepspeed
     # via huggingface-hub
     # via hydra-core
+    # via ipykernel
     # via lightning
     # via lightning-utilities
     # via matplotlib
@@ -214,14 +270,21 @@ packaging==24.0
     # via transformers
 pandas==2.2.2
     # via datasets
+parso==0.8.4
+    # via jedi
 peft==0.10.0
     # via lightning-diffusion
+pexpect==4.9.0
+    # via ipython
 pillow==10.3.0
     # via diffusers
     # via matplotlib
     # via torchvision
 platformdirs==4.2.2
+    # via jupyter-core
     # via wandb
+prompt-toolkit==3.0.48
+    # via ipython
 protobuf==5.26.1
     # via tensorboard
     # via tensorboardx
@@ -229,8 +292,13 @@ protobuf==5.26.1
 psutil==5.9.8
     # via accelerate
     # via deepspeed
+    # via ipykernel
     # via peft
     # via wandb
+ptyprocess==0.7.0
+    # via pexpect
+pure-eval==0.2.3
+    # via stack-data
 py-cpuinfo==9.0.0
     # via deepspeed
 pyarrow==16.0.0
@@ -238,16 +306,22 @@ pyarrow==16.0.0
 pyarrow-hotfix==0.6
     # via datasets
 pydantic==2.9.1
+    # via autogen
     # via deepspeed
+    # via openai
 pydantic-core==2.23.3
     # via pydantic
 pygments==2.17.2
+    # via ipython
     # via rich
 pyparsing==3.1.2
     # via matplotlib
 python-dateutil==2.9.0.post0
+    # via jupyter-client
     # via matplotlib
     # via pandas
+python-dotenv==1.0.1
+    # via autogen
 pytorch-lightning==2.2.4
     # via lightning
 pytz==2024.1
@@ -264,13 +338,19 @@ pyyaml==6.0.1
     # via transformers
     # via wandb
     # via webdataset
+pyzmq==26.2.0
+    # via ipykernel
+    # via jupyter-client
 regex==2024.4.28
     # via diffusers
+    # via tiktoken
     # via transformers
 requests==2.31.0
     # via datasets
     # via diffusers
+    # via docker
     # via huggingface-hub
+    # via tiktoken
     # via transformers
     # via wandb
 rich==13.7.1
@@ -293,13 +373,20 @@ setuptools==69.5.1
     # via tensorboard
     # via wandb
 six==1.16.0
+    # via asttokens
     # via docker-pycreds
     # via python-dateutil
     # via tensorboard
 smmap==5.0.1
     # via gitdb
+sniffio==1.3.1
+    # via anyio
+    # via httpx
+    # via openai
 soupsieve==2.5
     # via beautifulsoup4
+stack-data==0.6.3
+    # via ipython
 sympy==1.12
     # via torch
 tensorboard==2.16.2
@@ -308,6 +395,10 @@ tensorboard-data-server==0.7.2
     # via tensorboard
 tensorboardx==2.6.2.2
     # via lightning
+termcolor==2.4.0
+    # via autogen
+tiktoken==0.7.0
+    # via autogen
 tokenizers==0.19.1
     # via transformers
 torch==2.3.0
@@ -324,14 +415,25 @@ torchmetrics==1.3.2
     # via pytorch-lightning
 torchvision==0.18.0
     # via lightning-diffusion
+tornado==6.4.1
+    # via ipykernel
+    # via jupyter-client
 tqdm==4.66.2
     # via datasets
     # via deepspeed
     # via huggingface-hub
     # via lightning
+    # via openai
     # via peft
     # via pytorch-lightning
     # via transformers
+traitlets==5.14.3
+    # via comm
+    # via ipykernel
+    # via ipython
+    # via jupyter-client
+    # via jupyter-core
+    # via matplotlib-inline
 transformers==4.40.1
     # via lightning-diffusion
     # via peft
@@ -341,8 +443,10 @@ typeshed-client==2.5.1
     # via jsonargparse
 typing-extensions==4.11.0
     # via huggingface-hub
+    # via ipython
     # via lightning
     # via lightning-utilities
+    # via openai
     # via pydantic
     # via pydantic-core
     # via pytorch-lightning
@@ -351,12 +455,14 @@ typing-extensions==4.11.0
 tzdata==2024.1
     # via pandas
 urllib3==2.2.1
+    # via docker
     # via requests
     # via sentry-sdk
 wandb==0.17.1
     # via lightning-diffusion
 wcwidth==0.2.13
     # via ftfy
+    # via prompt-toolkit
 webdataset==0.2.86
     # via lightning-diffusion
 werkzeug==3.0.3

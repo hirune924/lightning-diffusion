@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.utils import is_torch_version, logging
@@ -62,9 +63,8 @@ class PixArtTransformer2DControlNetModel(ModelMixin, ConfigMixin):
         use_additional_conditions: Optional[bool] = None,
         caption_channels: Optional[int] = None,
         attention_type: Optional[str] = "default",
-    ):
+    ): 
         super().__init__()
-
         # Validate inputs.
         if norm_type != "ada_norm_single":
             raise NotImplementedError(
@@ -265,13 +265,13 @@ class PixArtTransformer2DControlNetModel(ModelMixin, ConfigMixin):
     def from_transformer(
         cls,
         transformer,
-        num_layers: int = 4,
+        num_layers: int = 13,
         #attention_head_dim: int = 72,
         #num_attention_heads: int = 16,
         load_weights_from_transformer=True,
     ):
         config = transformer.config
-        config["num_layers"] = num_layers
+        config.num_layers = num_layers
         #config["attention_head_dim"] = attention_head_dim
         #config["num_attention_heads"] = num_attention_heads
         controlnet = cls(
@@ -388,6 +388,322 @@ class PixArtTransformer2DControlNetModel(ModelMixin, ConfigMixin):
 
         # add for controlnet
         hidden_states = hidden_states + self.input_block(self.pos_embed(controlnet_cond))
+
+        timestep, embedded_timestep = self.adaln_single(
+            timestep, added_cond_kwargs, batch_size=batch_size, hidden_dtype=hidden_states.dtype
+        )
+
+        if self.caption_projection is not None:
+            encoder_hidden_states = self.caption_projection(encoder_hidden_states)
+            encoder_hidden_states = encoder_hidden_states.view(batch_size, -1, hidden_states.shape[-1])
+
+        # 2. Blocks
+        block_res_samples = ()
+        for block in self.transformer_blocks:
+            if self.training and self.gradient_checkpointing:
+
+                def create_custom_forward(module, return_dict=None):
+                    def custom_forward(*inputs):
+                        if return_dict is not None:
+                            return module(*inputs, return_dict=return_dict)
+                        else:
+                            return module(*inputs)
+
+                    return custom_forward
+
+                ckpt_kwargs: Dict[str, Any] = {"use_reentrant": False} if is_torch_version(">=", "1.11.0") else {}
+                hidden_states = torch.utils.checkpoint.checkpoint(
+                    create_custom_forward(block),
+                    hidden_states,
+                    attention_mask,
+                    encoder_hidden_states,
+                    encoder_attention_mask,
+                    timestep,
+                    cross_attention_kwargs,
+                    None,
+                    **ckpt_kwargs,
+                )
+            else:
+                hidden_states = block(
+                    hidden_states,
+                    attention_mask=attention_mask,
+                    encoder_hidden_states=encoder_hidden_states,
+                    encoder_attention_mask=encoder_attention_mask,
+                    timestep=timestep,
+                    cross_attention_kwargs=cross_attention_kwargs,
+                    class_labels=None,
+                )
+            block_res_samples = block_res_samples + (hidden_states,)
+
+        controlnet_block_res_samples = ()
+        for block_res_sample, controlnet_block in zip(block_res_samples, self.controlnet_blocks):
+            block_res_sample = controlnet_block(block_res_sample)
+            controlnet_block_res_samples = controlnet_block_res_samples + (block_res_sample,)
+
+        # 6. scaling
+        controlnet_block_res_samples = [sample * conditioning_scale for sample in controlnet_block_res_samples]
+
+        if not return_dict:
+            return (controlnet_block_res_samples,)
+
+        return PixArtControlNetOutput(controlnet_block_samples=controlnet_block_res_samples)
+
+class ControlNetConditioningEmbedding(nn.Module):
+    """
+    Quoting from https://arxiv.org/abs/2302.05543: "Stable Diffusion uses a pre-processing method similar to VQ-GAN
+    [11] to convert the entire dataset of 512 × 512 images into smaller 64 × 64 “latent images” for stabilized
+    training. This requires ControlNets to convert image-based conditions to 64 × 64 feature space to match the
+    convolution size. We use a tiny network E(·) of four convolution layers with 4 × 4 kernels and 2 × 2 strides
+    (activated by ReLU, channels are 16, 32, 64, 128, initialized with Gaussian weights, trained jointly with the full
+    model) to encode image-space conditions ... into feature maps ..."
+    """
+
+    def __init__(
+        self,
+        conditioning_embedding_channels: int,
+        conditioning_channels: int = 3,
+        block_out_channels: Tuple[int, ...] = (16, 32, 96, 256),
+    ):
+        super().__init__()
+
+        self.conv_in = nn.Conv2d(conditioning_channels, block_out_channels[0], kernel_size=3, padding=1)
+
+        self.blocks = nn.ModuleList([])
+
+        for i in range(len(block_out_channels) - 1):
+            channel_in = block_out_channels[i]
+            channel_out = block_out_channels[i + 1]
+            self.blocks.append(nn.Conv2d(channel_in, channel_in, kernel_size=3, padding=1))
+            self.blocks.append(nn.Conv2d(channel_in, channel_out, kernel_size=3, padding=1, stride=2))
+
+        self.conv_out = nn.Conv2d(block_out_channels[-1], conditioning_embedding_channels, kernel_size=3, padding=1)
+
+    def forward(self, conditioning):
+        embedding = self.conv_in(conditioning)
+        embedding = F.silu(embedding)
+
+        for block in self.blocks:
+            embedding = block(embedding)
+            embedding = F.silu(embedding)
+
+        embedding = self.conv_out(embedding)
+
+        return embedding
+    
+class PixArtTransformer2DControlNetNoVAEModel(PixArtTransformer2DControlNetModel):
+
+    _supports_gradient_checkpointing = True
+
+    @register_to_config
+    def __init__(
+        self,
+        num_attention_heads: int = 16,
+        attention_head_dim: int = 72,
+        in_channels: int = 3,
+        out_channels: Optional[int] = 8,
+        num_layers: int = 13,
+        dropout: float = 0.0,
+        norm_num_groups: int = 32,
+        cross_attention_dim: Optional[int] = 1152,
+        attention_bias: bool = True,
+        sample_size: int = 128,
+        patch_size: int = 2,
+        activation_fn: str = "gelu-approximate",
+        num_embeds_ada_norm: Optional[int] = 1000,
+        upcast_attention: bool = False,
+        norm_type: str = "ada_norm_single",
+        norm_elementwise_affine: bool = False,
+        norm_eps: float = 1e-6,
+        interpolation_scale: Optional[int] = None,
+        use_additional_conditions: Optional[bool] = None,
+        caption_channels: Optional[int] = None,
+        attention_type: Optional[str] = "default",
+    ): 
+        super(PixArtTransformer2DControlNetModel, self).__init__()
+        # Validate inputs.
+        if norm_type != "ada_norm_single":
+            raise NotImplementedError(
+                f"Forward pass is not implemented when `patch_size` is not None and `norm_type` is '{norm_type}'."
+            )
+        elif norm_type == "ada_norm_single" and num_embeds_ada_norm is None:
+            raise ValueError(
+                f"When using a `patch_size` and this `norm_type` ({norm_type}), `num_embeds_ada_norm` cannot be None."
+            )
+
+        # Set some common variables used across the board.
+        self.attention_head_dim = attention_head_dim
+        self.inner_dim = self.config.num_attention_heads * self.config.attention_head_dim
+        self.out_channels = in_channels if out_channels is None else out_channels
+        if use_additional_conditions is None:
+            if sample_size == 128:
+                use_additional_conditions = True
+            else:
+                use_additional_conditions = False
+        self.use_additional_conditions = use_additional_conditions
+
+        self.gradient_checkpointing = False
+
+        # 2. Initialize the position embedding and transformer blocks.
+        self.height = self.config.sample_size
+        self.width = self.config.sample_size
+
+        interpolation_scale = (
+            self.config.interpolation_scale
+            if self.config.interpolation_scale is not None
+            else max(self.config.sample_size // 64, 1)
+        )
+
+        #########################################################
+        self.controlnet_conditioning_embedding = ControlNetConditioningEmbedding(
+            conditioning_embedding_channels=320,
+            conditioning_channels=3,
+            block_out_channels=(16, 32, 96, 256),
+        )
+        #########################################################
+        self.cond_pos_embed = PatchEmbed(
+            height=self.config.sample_size,
+            width=self.config.sample_size,
+            patch_size=self.config.patch_size,
+            in_channels=320,
+            embed_dim=self.inner_dim,
+            interpolation_scale=interpolation_scale,
+        )
+        self.pos_embed = PatchEmbed(
+            height=self.config.sample_size,
+            width=self.config.sample_size,
+            patch_size=self.config.patch_size,
+            in_channels=self.config.in_channels,
+            embed_dim=self.inner_dim,
+            interpolation_scale=interpolation_scale,
+        )
+        self.transformer_blocks = nn.ModuleList(
+            [
+                BasicTransformerBlock(
+                    self.inner_dim,
+                    self.config.num_attention_heads,
+                    self.config.attention_head_dim,
+                    dropout=self.config.dropout,
+                    cross_attention_dim=self.config.cross_attention_dim,
+                    activation_fn=self.config.activation_fn,
+                    num_embeds_ada_norm=self.config.num_embeds_ada_norm,
+                    attention_bias=self.config.attention_bias,
+                    upcast_attention=self.config.upcast_attention,
+                    norm_type=norm_type,
+                    norm_elementwise_affine=self.config.norm_elementwise_affine,
+                    norm_eps=self.config.norm_eps,
+                    attention_type=self.config.attention_type,
+                )
+                for _ in range(self.config.num_layers)
+            ]
+        )
+        # ControlNet blocks
+        self.controlnet_blocks = nn.ModuleList([])
+        self.input_block = zero_module(nn.Linear(self.inner_dim, self.inner_dim))
+        for _ in range(len(self.transformer_blocks)):
+            controlnet_block = nn.Linear(self.inner_dim, self.inner_dim)
+            controlnet_block = zero_module(controlnet_block)
+            self.controlnet_blocks.append(controlnet_block)
+
+        # 3. Output blocks.
+        '''
+        self.norm_out = nn.LayerNorm(self.inner_dim, elementwise_affine=False, eps=1e-6)
+        self.scale_shift_table = nn.Parameter(torch.randn(2, self.inner_dim) / self.inner_dim**0.5)
+        self.proj_out = nn.Linear(self.inner_dim, self.config.patch_size * self.config.patch_size * self.out_channels)
+        '''
+        self.adaln_single = AdaLayerNormSingle(
+            self.inner_dim, use_additional_conditions=self.use_additional_conditions
+        )
+        self.caption_projection = None
+        if self.config.caption_channels is not None:
+            self.caption_projection = PixArtAlphaTextProjection(
+                in_features=self.config.caption_channels, hidden_size=self.inner_dim
+            )
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        controlnet_cond: torch.Tensor,
+        conditioning_scale: float = 1.0,
+        encoder_hidden_states: Optional[torch.Tensor] = None,
+        timestep: Optional[torch.LongTensor] = None,
+        added_cond_kwargs: Dict[str, torch.Tensor] = None,
+        cross_attention_kwargs: Dict[str, Any] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        encoder_attention_mask: Optional[torch.Tensor] = None,
+        return_dict: bool = True,
+    ):
+        """
+        The [`PixArtTransformer2DModel`] forward method.
+
+        Args:
+            hidden_states (`torch.FloatTensor` of shape `(batch size, channel, height, width)`):
+                Input `hidden_states`.
+            encoder_hidden_states (`torch.FloatTensor` of shape `(batch size, sequence len, embed dims)`, *optional*):
+                Conditional embeddings for cross attention layer. If not given, cross-attention defaults to
+                self-attention.
+            timestep (`torch.LongTensor`, *optional*):
+                Used to indicate denoising step. Optional timestep to be applied as an embedding in `AdaLayerNorm`.
+            added_cond_kwargs: (`Dict[str, Any]`, *optional*): Additional conditions to be used as inputs.
+            cross_attention_kwargs ( `Dict[str, Any]`, *optional*):
+                A kwargs dictionary that if specified is passed along to the `AttentionProcessor` as defined under
+                `self.processor` in
+                [diffusers.models.attention_processor](https://github.com/huggingface/diffusers/blob/main/src/diffusers/models/attention_processor.py).
+            attention_mask ( `torch.Tensor`, *optional*):
+                An attention mask of shape `(batch, key_tokens)` is applied to `encoder_hidden_states`. If `1` the mask
+                is kept, otherwise if `0` it is discarded. Mask will be converted into a bias, which adds large
+                negative values to the attention scores corresponding to "discard" tokens.
+            encoder_attention_mask ( `torch.Tensor`, *optional*):
+                Cross-attention mask applied to `encoder_hidden_states`. Two formats supported:
+
+                    * Mask `(batch, sequence_length)` True = keep, False = discard.
+                    * Bias `(batch, 1, sequence_length)` 0 = keep, -10000 = discard.
+
+                If `ndim == 2`: will be interpreted as a mask, then converted into a bias consistent with the format
+                above. This bias will be added to the cross-attention scores.
+            return_dict (`bool`, *optional*, defaults to `True`):
+                Whether or not to return a [`~models.unets.unet_2d_condition.UNet2DConditionOutput`] instead of a plain
+                tuple.
+
+        Returns:
+            If `return_dict` is True, an [`~models.transformer_2d.Transformer2DModelOutput`] is returned, otherwise a
+            `tuple` where the first element is the sample tensor.
+        """
+        if self.use_additional_conditions and added_cond_kwargs is None:
+            raise ValueError("`added_cond_kwargs` cannot be None when using additional conditions for `adaln_single`.")
+
+        # ensure attention_mask is a bias, and give it a singleton query_tokens dimension.
+        #   we may have done this conversion already, e.g. if we came here via UNet2DConditionModel#forward.
+        #   we can tell by counting dims; if ndim == 2: it's a mask rather than a bias.
+        # expects mask of shape:
+        #   [batch, key_tokens]
+        # adds singleton query_tokens dimension:
+        #   [batch,                    1, key_tokens]
+        # this helps to broadcast it as a bias over attention scores, which will be in one of the following shapes:
+        #   [batch,  heads, query_tokens, key_tokens] (e.g. torch sdp attn)
+        #   [batch * heads, query_tokens, key_tokens] (e.g. xformers or classic attn)
+        if attention_mask is not None and attention_mask.ndim == 2:
+            # assume that mask is expressed as:
+            #   (1 = keep,      0 = discard)
+            # convert mask into a bias that can be added to attention scores:
+            #       (keep = +0,     discard = -10000.0)
+            attention_mask = (1 - attention_mask.to(hidden_states.dtype)) * -10000.0
+            attention_mask = attention_mask.unsqueeze(1)
+
+        # convert encoder_attention_mask to a bias the same way we do for attention_mask
+        if encoder_attention_mask is not None and encoder_attention_mask.ndim == 2:
+            encoder_attention_mask = (1 - encoder_attention_mask.to(hidden_states.dtype)) * -10000.0
+            encoder_attention_mask = encoder_attention_mask.unsqueeze(1)
+
+        # 1. Input
+        batch_size = hidden_states.shape[0]
+        height, width = (
+            hidden_states.shape[-2] // self.config.patch_size,
+            hidden_states.shape[-1] // self.config.patch_size,
+        )
+        hidden_states = self.pos_embed(hidden_states)
+
+        # add for controlnet
+        hidden_states = hidden_states + self.input_block(self.cond_pos_embed(self.controlnet_conditioning_embedding(controlnet_cond)))
 
         timestep, embedded_timestep = self.adaln_single(
             timestep, added_cond_kwargs, batch_size=batch_size, hidden_dtype=hidden_states.dtype

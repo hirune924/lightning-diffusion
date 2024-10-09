@@ -36,8 +36,8 @@ class FluxControlnetModule(L.LightningModule):
             self.controlnet = FluxControlNetModel.from_pretrained(controlnet_model)
         else:
             self.controlnet = FluxControlNetModel.from_transformer(self.transformer,
-                                                                   num_layers=5,
-                                                                   num_single_layers=0,
+                                                                   #num_layers=5,
+                                                                   #num_single_layers=0,
                                                                    num_attention_heads=24,
                                                                    attention_head_dim=128)
         self.controlnet.to(dtype=torch.bfloat16)
@@ -241,7 +241,7 @@ class FluxControlnetModule(L.LightningModule):
         prompt_embeds = self.text_encoder_two(text_two)[0]
         bs_embed, seq_len, _ = prompt_embeds.shape
         prompt_embeds = prompt_embeds.view(bs_embed, seq_len, -1)
-        text_ids = torch.zeros(bs_embed, prompt_embeds.shape[1], 3).to(device=self.device, dtype=self.text_encoder_one.dtype)
+        text_ids = torch.zeros(prompt_embeds.shape[1], 3).to(device=self.device, dtype=self.text_encoder_one.dtype)
 
         return prompt_embeds, pooled_prompt_embeds, text_ids
 

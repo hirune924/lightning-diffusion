@@ -35,7 +35,7 @@ from diffusers.utils import (
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline, ImagePipelineOutput
 from lightning_diffusion.model.controlnet.archs.pixart_transformer_2d_controlnet import PixArtTransformer2DControlNet
-from lightning_diffusion.model.controlnet.archs.controlnet_pixart import PixArtTransformer2DControlNetModel
+from lightning_diffusion.model.controlnet.archs.controlnet_pixart import PixArtTransformer2DControlNetModel, PixArtTransformer2DControlNetNoVAEModel
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
@@ -279,7 +279,7 @@ class PixArtAlphaControlNetPipeline(DiffusionPipeline):
         vae: AutoencoderKL,
         scheduler: DPMSolverMultistepScheduler,
         transformer: PixArtTransformer2DControlNet,
-        controlnet: PixArtTransformer2DControlNetModel,
+        controlnet: PixArtTransformer2DControlNetModel | PixArtTransformer2DControlNetNoVAEModel,
     ):
         super().__init__()
 
@@ -897,7 +897,7 @@ class PixArtAlphaControlNetPipeline(DiffusionPipeline):
             prompt_attention_mask = torch.cat([negative_prompt_attention_mask, prompt_attention_mask], dim=0)
 
         ## Add for ControlNet
-        if isinstance(self.controlnet, PixArtTransformer2DControlNetModel):
+        if isinstance(self.controlnet, (PixArtTransformer2DControlNetModel, PixArtTransformer2DControlNetNoVAEModel)):
             control_image = self.prepare_image(
                 image=control_image,
                 width=width,
@@ -911,8 +911,9 @@ class PixArtAlphaControlNetPipeline(DiffusionPipeline):
             )
             height, width = control_image.shape[-2:]
 
-            control_image = self.vae.encode(control_image).latent_dist.sample()
-            control_image = control_image * self.vae.config.scaling_factor
+            if isinstance(self.controlnet, PixArtTransformer2DControlNetModel):
+                control_image = self.vae.encode(control_image).latent_dist.sample()
+                control_image = control_image * self.vae.config.scaling_factor
 
         else:
             assert False
@@ -993,7 +994,7 @@ class PixArtAlphaControlNetPipeline(DiffusionPipeline):
                     timestep=current_timestep,
                     added_cond_kwargs=added_cond_kwargs,
                     return_dict=False,
-                    control_block_samples=control_block_samples,
+                    controlnet_block_samples=control_block_samples,
                 )[0]
 
                 # perform guidance

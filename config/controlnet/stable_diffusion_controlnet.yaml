@@ -104,7 +104,7 @@ ckpt_path: null
 model:
   class_path: StableDiffusionControlnetModule
   init_args:
-    base_model: runwayml/stable-diffusion-v1-5
+    base_model: Lykon/dreamshaper-8
     controlnet_model: null
     gradient_checkpointing: false
     ucg_rate: 0.1

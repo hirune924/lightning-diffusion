@@ -1,3 +1,4 @@
+from typing import Any
 import lightning as L
 import torch
 import torch.nn.functional as F
@@ -8,11 +9,13 @@ from peft import get_peft_model, LoraConfig
 from diffusers import ControlNetModel
 from PIL import Image
 from diffusers.utils import load_image
-
+from lightning_diffusion.utils.utils import load_pytorch_model
+import bitsandbytes as bnb
 class StableDiffusionXLControlnetModule(L.LightningModule):
     def __init__(self, 
                  base_model: str = "stabilityai/stable-diffusion-xl-base-1.0", 
                  controlnet_model: str | None = None,
+                 controlnet_weight: str | None = None,
                  gradient_checkpointing: bool = False,
                  ucg_rate: float = 0.0,
                  input_perturbation_gamma: float = 0.0,
@@ -39,8 +42,12 @@ class StableDiffusionXLControlnetModule(L.LightningModule):
             self.controlnet = ControlNetModel.from_pretrained(controlnet_model)
         else:
             self.controlnet = ControlNetModel.from_unet(self.unet)
+        if controlnet_weight is not None:
+            self.controlnet = load_pytorch_model(ckpt_name=controlnet_weight, 
+                                            model=self.controlnet,
+                                             ignore_suffix="controlnet")
 
-        self.vae.requires_grad_(False)
+        self.vae.requires_grad_(False) 
         self.text_encoder_one.requires_grad_(False)
         self.text_encoder_two.requires_grad_(False)
         self.unet.requires_grad_(False)
@@ -54,6 +61,7 @@ class StableDiffusionXLControlnetModule(L.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=1e-5, weight_decay=1e-2)
+        #optimizer = bnb.optim.AdamW8bit(list(filter(lambda p: p.requires_grad, self.parameters())), lr=1.0e-5, weight_decay=1e-2)
         return optimizer
 
     @torch.inference_mode()
@@ -218,3 +226,79 @@ class StableDiffusionXLControlnetModule(L.LightningModule):
         prompt_embeds = torch.concat(prompt_embeds_list, dim=-1)
         pooled_prompt_embeds = pooled_prompt_embeds.view(bs_embed, -1)
         return prompt_embeds, pooled_prompt_embeds
+    def on_save_checkpoint(self, checkpoint: dict[str, Any]) -> None:
+        self.controlnet.save_pretrained(f'{self.trainer.default_root_dir}/controlnet_weight/step_{self.global_step}')
+        # save only unet parameters
+        list_keys = list(checkpoint['state_dict'].keys())
+        for k in list_keys:
+            if not k.startswith("controlnet."):
+                del checkpoint['state_dict'][k]
+        
+
+class StableDiffusionXLControlnetLoRAModule(StableDiffusionXLControlnetModule):
+    def __init__(self, 
+                 base_model: str = "stabilityai/stable-diffusion-xl-base-1.0", 
+                 controlnet_model: str | None = None,
+                 controlnet_weight: str | None = None,
+                 gradient_checkpointing: bool = False,
+                 ucg_rate: float = 0.0,
+                 input_perturbation_gamma: float = 0.0,
+                 noise_offset: float = 0.0):
+        super(StableDiffusionXLControlnetModule, self).__init__()
+        self.input_perturbation_gamma = input_perturbation_gamma
+        self.ucg_rate = ucg_rate
+        self.noise_offset = noise_offset
+        self.tokenizer_one = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=base_model,
+                                                           subfolder="tokenizer", use_fast=False)
+        self.tokenizer_two = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=base_model,
+                                                           subfolder="tokenizer_2", use_fast=False)       
+        self.scheduler = DDPMScheduler.from_pretrained(pretrained_model_name_or_path=base_model,
+                                                       subfolder="scheduler")
+        self.text_encoder_one = CLIPTextModel.from_pretrained(pretrained_model_name_or_path=base_model,
+                                                              subfolder="text_encoder")
+        self.text_encoder_two = CLIPTextModelWithProjection.from_pretrained(pretrained_model_name_or_path=base_model,
+                                                                            subfolder="text_encoder_2")
+        self.vae = AutoencoderKL.from_pretrained(pretrained_model_name_or_path="madebyollin/sdxl-vae-fp16-fix",
+                                                 subfolder=None)
+        self.unet = UNet2DConditionModel.from_pretrained(pretrained_model_name_or_path=base_model,
+                                                         subfolder="unet")
+        if controlnet_model is not None:
+            self.controlnet = ControlNetModel.from_pretrained(controlnet_model)
+        else:
+            self.controlnet = ControlNetModel.from_unet(self.unet)
+        if controlnet_weight is not None:
+            self.controlnet = load_pytorch_model(ckpt_name=controlnet_weight, 
+                                             model=self.controlnet,
+                                             ignore_suffix="controlnet")
+
+        self.vae.requires_grad_(False)
+        self.text_encoder_one.requires_grad_(False)
+        self.text_encoder_two.requires_grad_(False)
+        self.unet.requires_grad_(False)
+        self.controlnet.requires_grad_(False)
+        
+        if gradient_checkpointing:
+            self.controlnet.enable_gradient_checkpointing()
+            self.unet.enable_gradient_checkpointing()
+            
+        lora_config = LoraConfig(r=8,
+                                    lora_alpha=8,
+                                    target_modules=["to_q", "to_v", "to_k", "to_out.0"])
+        self.unet = get_peft_model(self.unet, lora_config)
+        self.unet.print_trainable_parameters()
+
+        self.train()
+
+    def on_save_checkpoint(self, checkpoint: dict[str, Any]) -> None:
+        from diffusers.utils import convert_state_dict_to_diffusers
+        from peft.utils import get_peft_model_state_dict
+        unet_lora_layers_to_save = convert_state_dict_to_diffusers(get_peft_model_state_dict(self.unet))
+        StableDiffusionXLControlNetPipeline.save_lora_weights(
+                f'{self.trainer.default_root_dir}/lora_weight/step_{self.global_step}',
+                unet_lora_layers=unet_lora_layers_to_save
+        )
+        # save only unet parameters
+        list_keys = list(checkpoint['state_dict'].keys())
+        for k in list_keys:
+            if not k.startswith("unet."):
+                del checkpoint['state_dict'][k]

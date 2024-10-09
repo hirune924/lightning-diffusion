@@ -111,8 +111,12 @@ data:
     cache_dir: null
     batch_size: 8
     num_workers: 4
+    multi_aspect: true
     dataset_cls: lightning_diffusion.data.HFStableDiffusionXLDataset
     dataset_args:
       image_column: image
       caption_column: text
       csv: metadata.csv
+      repeat: 10
+    dataset_process_args:
+      multi_aspect: true

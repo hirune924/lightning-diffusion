@@ -1,7 +1,8 @@
+from typing import Any
 import lightning as L
 import torch
 import torch.nn.functional as F
-from diffusers import AutoencoderKL, DDPMScheduler, PixArtTransformer2DModel, PixArtAlphaPipeline, PixArtSigmaPipeline
+from diffusers import AutoencoderKL, DDPMScheduler, DPMSolverMultistepScheduler, PixArtTransformer2DModel, PixArtAlphaPipeline, PixArtSigmaPipeline
 from transformers import T5EncoderModel, T5Tokenizer
 from transformers import CLIPTextModel, CLIPTokenizer
 import numpy as np
@@ -9,22 +10,25 @@ from peft import get_peft_model, LoraConfig
 from lightning_diffusion.model.text_to_image.utils.pixart import discretized_gaussian_log_likelihood
 from lightning_diffusion.model.controlnet.pipelines.pipeline_pixart_alpha_controlnet import PixArtAlphaControlNetPipeline
 from lightning_diffusion.model.controlnet.pipelines.pipeline_pixart_sigma_controlnet import PixArtSigmaControlNetPipeline
-from lightning_diffusion.model.controlnet.archs.controlnet_pixart import PixArtTransformer2DControlNetModel
+from lightning_diffusion.model.controlnet.archs.controlnet_pixart import PixArtTransformer2DControlNetModel, PixArtTransformer2DControlNetNoVAEModel
 from lightning_diffusion.model.controlnet.archs.pixart_transformer_2d_controlnet import PixArtTransformer2DControlNet
 from PIL import Image
 from diffusers.utils import load_image
+from lightning_diffusion.utils.utils import load_pytorch_model
 
 class PixArtControlnetModule(L.LightningModule):
     def __init__(self, 
                  base_model: str = "PixArt-alpha/PixArt-XL-2-512x512",
                  base_transformer: str = "PixArt-alpha/PixArt-XL-2-512x512",
+                 controlnet_weight: str = None,
                  gradient_checkpointing: bool = True,
                  ucg_rate: float = 0.0,
                  input_perturbation_gamma: float = 0.0,
                  tokenizer_max_length: int = 120,
                  noise_offset: float = 0.0,
                  use_resolution: bool = False,
-                 enable_vb_loss: bool = True):
+                 enable_vb_loss: bool = True,
+                 no_vae: bool = False):
         super().__init__()
         self.input_perturbation_gamma = input_perturbation_gamma
         self.ucg_rate = ucg_rate
@@ -32,6 +36,8 @@ class PixArtControlnetModule(L.LightningModule):
         self.enable_vb_loss = enable_vb_loss
         self.tokenizer_max_length = tokenizer_max_length
         self.use_resolution = use_resolution
+        self.base_model = base_model
+        self.no_vae = no_vae
         self.tokenizer = T5Tokenizer.from_pretrained(pretrained_model_name_or_path=base_model,
                                                        subfolder="tokenizer")
         self.scheduler = DDPMScheduler.from_pretrained(pretrained_model_name_or_path=base_model,
@@ -42,7 +48,12 @@ class PixArtControlnetModule(L.LightningModule):
         self.transformer = PixArtTransformer2DControlNet.from_pretrained(pretrained_model_name_or_path=base_transformer,
                                                               use_additional_conditions=use_resolution,
                                                               subfolder="transformer")
-        self.controlnet = PixArtTransformer2DControlNetModel.from_transformer(self.transformer)
+        if self.no_vae:
+            self.controlnet = PixArtTransformer2DControlNetNoVAEModel.from_transformer(self.transformer, num_layers=13)
+        else:
+            self.controlnet = PixArtTransformer2DControlNetModel.from_transformer(self.transformer, num_layers=13)
+        if controlnet_weight is not None:
+            self.controlnet = load_pytorch_model(ckpt_name=controlnet_weight, model=self.controlnet, ignore_suffix="controlnet")
         
         self.vae.requires_grad_(False)
         self.text_encoder.requires_grad_(False)
@@ -60,7 +71,9 @@ class PixArtControlnetModule(L.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=1e-5, weight_decay=1e-2)
-        return optimizer
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10000, T_mult=1)
+
+        return [optimizer], [{'scheduler': scheduler, 'interval': 'step'}]
 
     @torch.inference_mode()
     def forward(self,
@@ -69,7 +82,7 @@ class PixArtControlnetModule(L.LightningModule):
               negative_prompt: str | None = None,
               height: int | None = 512,
               width: int | None = 512,
-              num_inference_steps: int = 50,
+              num_inference_steps: int = 20,
               ) -> list[np.ndarray]:
         
         if self.tokenizer_max_length == 120:
@@ -81,7 +94,7 @@ class PixArtControlnetModule(L.LightningModule):
             text_encoder=self.text_encoder,
             tokenizer=self.tokenizer,
             transformer=self.transformer,
-            scheduler=self.scheduler,
+            scheduler=DPMSolverMultistepScheduler.from_pretrained(pretrained_model_name_or_path=self.base_model, subfolder="scheduler"),
             controlnet=self.controlnet
         )
         pipeline.set_progress_bar_config(disable=True)
@@ -120,9 +133,11 @@ class PixArtControlnetModule(L.LightningModule):
             return_tensors="pt")
         batch["text"] = text_inputs.input_ids.to(self.device)
         batch["attention_mask"] = text_inputs.attention_mask.to(self.device)
-        
         latents = self.vae.encode(batch["image"]).latent_dist.sample() * self.vae.config.scaling_factor
-        control_img = self.vae.encode(batch["condition_img"]).latent_dist.sample() * self.vae.config.scaling_factor
+        if not self.no_vae:
+            control_img = self.vae.encode(batch["condition_img"]).latent_dist.sample() * self.vae.config.scaling_factor
+        else:
+            control_img = batch["condition_img"]
 
         noise = torch.randn_like(latents, device=self.device)
         timesteps = torch.randint(
@@ -262,3 +277,11 @@ class PixArtControlnetModule(L.LightningModule):
         loss_dict["l2_loss"] = F.mse_loss(model_pred.float(), gt.float(), reduction="mean")
 
         return loss_dict
+    def on_save_checkpoint(self, checkpoint: dict[str, Any]) -> None:
+        self.controlnet.save_pretrained(f'{self.trainer.default_root_dir}/controlnet_weight/step_{self.global_step}')
+        # save only unet parameters
+        list_keys = list(checkpoint['state_dict'].keys())
+        for k in list_keys:
+            if not k.startswith("controlnet."):
+                del checkpoint['state_dict'][k]
+        

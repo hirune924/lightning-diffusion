@@ -11,6 +11,34 @@ import html
 import numpy as np
 import math
 import cv2
+from torchvision.transforms import v2
+Image.MAX_IMAGE_PIXELS = 1000000000
+
+ASPECT_RATIO_1024 = {
+    '0.25': [512., 2048.], '0.26': [512., 1984.], '0.27': [512., 1920.], '0.28': [512., 1856.],
+    '0.32': [576., 1792.], '0.33': [576., 1728.], '0.35': [576., 1664.], '0.4':  [640., 1600.],
+    '0.42':  [640., 1536.], '0.48': [704., 1472.], '0.5': [704., 1408.], '0.52': [704., 1344.],
+    '0.57': [768., 1344.], '0.6': [768., 1280.], '0.68': [832., 1216.], '0.72': [832., 1152.],
+    '0.78': [896., 1152.], '0.82': [896., 1088.], '0.88': [960., 1088.], '0.94': [960., 1024.],
+    '1.0':  [1024., 1024.], '1.07': [1024.,  960.], '1.13': [1088.,  960.], '1.21': [1088.,  896.],
+    '1.29': [1152.,  896.], '1.38': [1152.,  832.], '1.46': [1216.,  832.], '1.67': [1280.,  768.],
+    '1.75': [1344.,  768.], '2.0':  [1408.,  704.], '2.09':  [1472.,  704.], '2.4':  [1536.,  640.],
+    '2.5':  [1600.,  640.], '2.89':  [1664.,  576.], '3.0':  [1728.,  576.], '3.11':  [1792.,  576.],
+    '3.62':  [1856.,  512.], '3.75':  [1920.,  512.], '3.88':  [1984.,  512.], '4.0':  [2048.,  512.],
+}
+
+ASPECT_RATIO_512 = {
+     '0.25': [256.0, 1024.0], '0.26': [256.0, 992.0], '0.27': [256.0, 960.0], '0.28': [256.0, 928.0],
+     '0.32': [288.0, 896.0], '0.33': [288.0, 864.0], '0.35': [288.0, 832.0], '0.4': [320.0, 800.0],
+     '0.42': [320.0, 768.0], '0.48': [352.0, 736.0], '0.5': [352.0, 704.0], '0.52': [352.0, 672.0],
+     '0.57': [384.0, 672.0], '0.6': [384.0, 640.0], '0.68': [416.0, 608.0], '0.72': [416.0, 576.0],
+     '0.78': [448.0, 576.0], '0.82': [448.0, 544.0], '0.88': [480.0, 544.0], '0.94': [480.0, 512.0],
+     '1.0': [512.0, 512.0], '1.07': [512.0, 480.0], '1.13': [544.0, 480.0], '1.21': [544.0, 448.0],
+     '1.29': [576.0, 448.0], '1.38': [576.0, 416.0], '1.46': [608.0, 416.0], '1.67': [640.0, 384.0],
+     '1.75': [672.0, 384.0], '2.0': [704.0, 352.0], '2.09': [736.0, 352.0], '2.4': [768.0, 320.0],
+     '2.5': [800.0, 320.0], '2.89': [832.0, 288.0], '3.0': [864.0, 288.0], '3.11': [896.0, 288.0],
+     '3.62': [928.0, 256.0], '3.75': [960.0, 256.0], '3.88': [992.0, 256.0], '4.0': [1024.0, 256.0]
+     }
 
 class RandomCropWithInfo(torch.nn.Module):
     def __init__(self,
@@ -42,6 +70,59 @@ class RandomCropWithInfo(torch.nn.Module):
             image = image_list[0]
 
         return image, size_info
+
+class MultiAspectRatioResizeCenterCropWithInfo(torch.nn.Module):
+    def __init__(self,
+                 *args,
+                 sizes: list[list[int]] | dict[str, list[int]],
+                 **kwargs) -> None:
+        super().__init__()
+        if isinstance(sizes, dict):
+            self.sizes = list(sizes.values())
+        else:
+            self.sizes = sizes
+        self.aspect_ratios = np.array([s[0] / s[1] for s in sizes])
+        #self.transform = torchvision.transforms.RandomCrop(
+        #    *args, size, **kwargs)
+        
+    def forward(self, image: Image.Image | list[Image.Image]):
+        if isinstance(image, list):
+            image_list = image
+        else:
+            image_list = [image]
+
+        size_info = {}
+
+        for i, img in enumerate(image_list):
+            aspect_ratio = img.height / img.width
+            bucket_id = np.argmin(np.abs(aspect_ratio - self.aspect_ratios))
+            # Resize the image to fit the target size while maintaining aspect ratio
+            target_size = self.sizes[bucket_id]
+            scale = max(target_size[0] / img.height, target_size[1] / img.width)
+            new_size = (int(img.width * scale), int(img.height * scale))
+            resized_image = v2.functional.resize(img, new_size, antialias=True)
+            # Center crop to the target size
+            cropped_image = v2.functional.center_crop(resized_image, target_size)
+
+            image_list[i] = cropped_image
+
+        size_info["before_crop_size"] = [resized_image.height, resized_image.width]
+        size_info["crop_top_left"] = [
+            (resized_image.height - target_size[0]) // 2,
+            (resized_image.width - target_size[1]) // 2
+        ]
+        size_info["crop_bottom_right"] = [
+            size_info["crop_top_left"][0] + target_size[0],
+            size_info["crop_top_left"][1] + target_size[1]
+        ]
+        bucket_id = str(np.argmin(np.abs(aspect_ratio - self.aspect_ratios)))
+
+        if isinstance(image, list):
+            image = image_list
+        else:
+            image = image_list[0]
+
+        return image, bucket_id, size_info
 
 class ComputeTimeIds(torch.nn.Module):
     """Compute time ids as 'time_ids'"""
@@ -586,3 +667,49 @@ def brush_stroke_mask(img_shape: tuple[int, int],
         mask.transpose(Image.FLIP_TOP_BOTTOM)
     mask = np.array(mask).astype(dtype=getattr(np, dtype))
     return mask[:, :, None]
+
+def XDoG_filter(image,
+                kernel_size=0,
+                sigma=1.4,
+                k_sigma=1.6,
+                epsilon=0,
+                phi=10,
+                gamma=0.98):
+    """XDoG(Extended Difference of Gaussians)を処理した画像を返す
+
+    Args:
+        image: OpenCV Image
+        kernel_size: Gaussian Blur Kernel Size
+        sigma: sigma for small Gaussian filter
+        k_sigma: large/small for sigma Gaussian filter
+        eps: threshold value between dark and bright
+        phi: soft threshold
+        gamma: scale parameter for DoG signal to make sharp
+
+    Returns:
+        Image after applying the XDoG.
+    """
+    epsilon /= 255
+    dog = DoG_filter(image, kernel_size, sigma, k_sigma, gamma)
+    dog /= dog.max()
+    e = 1 + np.tanh(phi * (dog - epsilon))
+    e[e >= 1] = 1
+    return e.astype('uint8') * 255
+
+
+def DoG_filter(image, kernel_size=0, sigma=1.4, k_sigma=1.6, gamma=1):
+    """DoG(Difference of Gaussians)を処理した画像を返す
+
+    Args:
+        image: OpenCV Image
+        kernel_size: Gaussian Blur Kernel Size
+        sigma: sigma for small Gaussian filter
+        k_sigma: large/small for sigma Gaussian filter
+        gamma: scale parameter for DoG signal to make sharp
+
+    Returns:
+        Image after applying the DoG.
+    """
+    g1 = cv2.GaussianBlur(image, (kernel_size, kernel_size), sigma)
+    g2 = cv2.GaussianBlur(image, (kernel_size, kernel_size), sigma * k_sigma)
+    return g1 - gamma * g2
