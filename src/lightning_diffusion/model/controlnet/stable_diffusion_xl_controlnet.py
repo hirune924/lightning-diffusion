@@ -243,7 +243,8 @@ class StableDiffusionXLControlnetLoRAModule(StableDiffusionXLControlnetModule):
                  gradient_checkpointing: bool = False,
                  ucg_rate: float = 0.0,
                  input_perturbation_gamma: float = 0.0,
-                 noise_offset: float = 0.0):
+                 noise_offset: float = 0.0,
+                 lora_rank: int = 8):
         super(StableDiffusionXLControlnetModule, self).__init__()
         self.input_perturbation_gamma = input_perturbation_gamma
         self.ucg_rate = ucg_rate
@@ -281,8 +282,8 @@ class StableDiffusionXLControlnetLoRAModule(StableDiffusionXLControlnetModule):
             self.controlnet.enable_gradient_checkpointing()
             self.unet.enable_gradient_checkpointing()
             
-        lora_config = LoraConfig(r=8,
-                                    lora_alpha=8,
+        lora_config = LoraConfig(r=lora_rank,
+                                    lora_alpha=lora_rank,
                                     target_modules=["to_q", "to_v", "to_k", "to_out.0"])
         self.unet = get_peft_model(self.unet, lora_config)
         self.unet.print_trainable_parameters()
