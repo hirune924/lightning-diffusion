@@ -146,18 +146,31 @@ class HFStableDiffusionXLControlnetDataset(HFGeneralDataset):
         return input
 
 class HFFluxControlnetDataset(HFGeneralDataset):
-    def init_post_process(self, image_size: int = 512):
-        self.transform = v2.Compose([
-            v2.ToImage(),  # Convert to tensor, only needed if you had a PIL image
-            v2.ToDtype(torch.uint8, scale=True),
-            v2.Resize(size=image_size, interpolation=v2.InterpolationMode.BILINEAR),
-            v2.RandomCrop(size=image_size),
-            v2.RandomHorizontalFlip(),
-            #v2.ToTensor(),
+    def init_post_process(self, image_size: int = 512, multi_aspect: bool = True):
+        self.multi_aspect = multi_aspect
+        self.resize = v2.Resize(size=image_size, interpolation=v2.InterpolationMode.BILINEAR)
+        self.hflip = v2.RandomHorizontalFlip(p=0.5)
+        if multi_aspect:
+            if image_size == 512:
+                aspect = [
+                [320, 768], [384, 672], [416, 608], [448, 576],
+                [512, 512], [576, 448], [608, 416], [672, 384], [768, 320]
+                ]
+            elif image_size == 1024:
+                aspect = [
+                [640, 1536], [768, 1344], [832, 1216], [896, 1152],
+                [1024, 1024], [1152, 896], [1216, 832], [1344, 768], [1536, 640]
+                ]
+            else:
+                raise ValueError(f"Unsupported size: {image_size}")
+            self.random_crop = MultiAspectRatioResizeCenterCropWithInfo(sizes=aspect)
+        else:
+            self.random_crop = RandomCropWithInfo(size=image_size)
+        self.normalize = v2.Compose([
+            v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
             v2.Normalize(mean=[0.5], std=[0.5]),
         ])
-
     def post_process(self, input: dict[str: Any]):
         if isinstance(input["image"], str):
             input["image"] = load_image(os.path.join(self.dataset_name, input["image"]))
@@ -168,7 +181,67 @@ class HFFluxControlnetDataset(HFGeneralDataset):
         if isinstance(input["text"], list | np.ndarray):
             input["text"] = random.choice(input["text"])
 
-        input['image'], input['condition_img'] = self.transform(input['image'], input['condition_img'])
+        input['image'], input['condition_img'] = self.resize(input['image'], input['condition_img'])
+        input['image'], input['condition_img'] = self.hflip(input['image'], input['condition_img'])
+        if self.multi_aspect:
+            (input['image'], input['condition_img']), input['bucket_id'], size_info = self.random_crop([input['image'], input['condition_img']])
+        else:
+            (input['image'], input['condition_img']), size_info = self.random_crop([input['image'], input['condition_img']])
+        input['image'], input['condition_img'] = self.normalize(input['image'], input['condition_img'])
+        
+        return input
+    
+
+from lightning_diffusion.data.transforms import draw_random_colored_points
+class HFFluxControlnetColorDotDataset(HFGeneralDataset):
+    def init_post_process(self, image_size: int = 512, multi_aspect: bool = True, color_mode: str = "median"):
+        self.multi_aspect = multi_aspect
+        self.color_mode = color_mode
+        self.resize = v2.Resize(size=image_size, interpolation=v2.InterpolationMode.BILINEAR)
+        self.hflip = v2.RandomHorizontalFlip(p=0.5)
+        if multi_aspect:
+            if image_size == 512:
+                aspect = [
+                [320, 768], [384, 672], [416, 608], [448, 576],
+                [512, 512], [576, 448], [608, 416], [672, 384], [768, 320]
+                ]
+            elif image_size == 1024:
+                aspect = [
+                [640, 1536], [768, 1344], [832, 1216], [896, 1152],
+                [1024, 1024], [1152, 896], [1216, 832], [1344, 768], [1536, 640]
+                ]
+            else:
+                raise ValueError(f"Unsupported size: {image_size}")
+            self.random_crop = MultiAspectRatioResizeCenterCropWithInfo(sizes=aspect)
+        else:
+            self.random_crop = RandomCropWithInfo(size=image_size)
+        self.normalize = v2.Compose([
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(mean=[0.5], std=[0.5]),
+        ])
+    def post_process(self, input: dict[str: Any]):
+        if isinstance(input["image"], str):
+            input["image"] = load_image(os.path.join(self.dataset_name, input["image"]))
+        input["image"].convert('RGB')
+        if isinstance(input["condition_img"], str):
+            input["condition_img"] = load_image(os.path.join(self.dataset_name, input["condition_img"]))
+        input["condition_img"].convert('RGB')
+        if isinstance(input["text"], list | np.ndarray):
+            input["text"] = random.choice(input["text"])
+
+        input['image'], input['condition_img'] = self.resize(input['image'], input['condition_img'])
+        input['image'], input['condition_img'] = self.hflip(input['image'], input['condition_img'])
+
+        if random.random() < 0.5:
+            input['condition_colordot_img'] = draw_random_colored_points(input['condition_img'], input['image'], num_range=(1,8), radius_range=(16,40), color_mode=self.color_mode)
+        else:
+            input['condition_colordot_img'] = input['condition_img']
+        if self.multi_aspect:
+            (input['image'], input['condition_img'], input['condition_colordot_img']), input['bucket_id'], size_info = self.random_crop([input['image'], input['condition_img'], input['condition_colordot_img']])
+        else:
+            (input['image'], input['condition_img'], input['condition_colordot_img']), size_info = self.random_crop([input['image'], input['condition_img'], input['condition_colordot_img']])
+        input['image'], input['condition_img'], input['condition_colordot_img'] = self.normalize(input['image'], input['condition_img'], input['condition_colordot_img'])
         
         return input
     
@@ -314,18 +387,27 @@ class HFStableDiffusionXLColorizeControlnetDataset(HFGeneralDataset):
         return input
     
 class HFPixArtColorizeControlnetDataset(HFGeneralDataset):
-    def init_post_process(self, multi_aspect: bool = True):
+    def init_post_process(self, size: int = 512, multi_aspect: bool = True):
         self.multi_aspect = multi_aspect
-        self.resize = v2.Resize(size=512, interpolation=v2.InterpolationMode.BILINEAR)
+        self.size = size
+        self.resize = v2.Resize(size=size, interpolation=v2.InterpolationMode.BILINEAR)
         self.hflip = v2.RandomHorizontalFlip(p=0.5)
         if multi_aspect:
-            self.random_crop = MultiAspectRatioResizeCenterCropWithInfo(sizes=[
+            if size == 512:
+                aspect = [
                 [320, 768], [384, 672], [416, 608], [448, 576],
                 [512, 512], [576, 448], [608, 416], [672, 384], [768, 320]
-                ])
+                ]
+            elif size == 1024:
+                aspect = [
+                [640, 1536], [768, 1344], [832, 1216], [896, 1152],
+                [1024, 1024], [1152, 896], [1216, 832], [1344, 768], [1536, 640]
+                ]
+            else:
+                raise ValueError(f"Unsupported size: {size}")
+            self.random_crop = MultiAspectRatioResizeCenterCropWithInfo(sizes=aspect)
         else:
-            self.random_crop = RandomCropWithInfo(size=512)
-        self.time_ids = ComputeTimeIds()
+            self.random_crop = RandomCropWithInfo(size=size)
         self.normalize = v2.Compose([
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),

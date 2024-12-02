@@ -4,7 +4,7 @@ from lightning.pytorch.loggers import TensorBoardLogger, CSVLogger, WandbLogger
 from lightning.pytorch.utilities import rank_zero_only
 import numpy as np
 from typing import Any
-from diffusers.utils import export_to_video
+from diffusers.utils import export_to_video, export_to_gif
 import os 
 from PIL import Image
 
@@ -103,7 +103,10 @@ class VisualizeVideoCallback(L.Callback):
             **self.kwargs)
         
         for idx, v in enumerate(videos):
-            export_to_video([Image.fromarray(frame) for frame in v], f"{self.save_dir}/video_{idx}_{trainer.global_step}.mp4", fps=8)
+            if isinstance(v[0], np.ndarray):
+                v = [Image.fromarray(frame) for frame in v]
+            #export_to_video(v, f"{self.save_dir}/video_{idx}_{trainer.global_step}.mp4", fps=8)
+            export_to_gif(v, f"{self.save_dir}/video_{idx}_{trainer.global_step}.gif", fps=8)
             #pil_images = [Image.fromarray(frame) for frame in v]
             #pil_images[0].save(
             #    fp=f"{self.save_dir}/video_{idx}_{trainer.global_step}.gif",

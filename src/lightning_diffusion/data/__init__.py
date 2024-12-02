@@ -5,3 +5,5 @@ from .hf_modules import *
 from .wds_datasets import *
 from .wds_modules import *
 from .animate_anyone.dataset import *
+from .animatediff.dataset import *
+from .cogvideox.dataset import *

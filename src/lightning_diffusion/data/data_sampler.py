@@ -1,6 +1,6 @@
 from collections.abc import Generator
 from torch.utils.data import BatchSampler, Sampler
-
+import torch
 class AspectRatioBatchSampler(BatchSampler):
     """A sampler wrapper for grouping images with similar aspect ratio into a same batch.
 
@@ -53,4 +53,3 @@ class AspectRatioBatchSampler(BatchSampler):
                     yield v
                     del v
         self._aspect_ratio_buckets = {}
-

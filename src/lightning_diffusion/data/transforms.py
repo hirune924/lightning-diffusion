@@ -713,3 +713,56 @@ def DoG_filter(image, kernel_size=0, sigma=1.4, k_sigma=1.6, gamma=1):
     g1 = cv2.GaussianBlur(image, (kernel_size, kernel_size), sigma)
     g2 = cv2.GaussianBlur(image, (kernel_size, kernel_size), sigma * k_sigma)
     return g1 - gamma * g2
+
+
+def draw_colored_point(line_img, color_img, x, y, radius, alpha=0.9, color_mode="median"):
+    color_img = color_img.convert("RGB").resize(line_img.size)
+
+    # Convert PIL Images to numpy arrays for processing
+    line_img_cv = np.array(line_img)
+    color_img_cv = np.array(color_img)
+
+    # Get the average color from the color image at circle location
+    circle_mask = np.zeros(line_img_cv.shape[:2], dtype=np.uint8)
+    cv2.circle(circle_mask, (x, y), radius, 255, -1)
+    circle_region = color_img_cv[circle_mask == 255]
+    avg_color = tuple(map(int, np.median(circle_region, axis=0)))
+
+    # Draw the circle with the average color from color image
+    # Create a transparent circle mask
+    overlay_mask = np.zeros_like(line_img_cv, dtype=np.uint8)
+    cv2.circle(overlay_mask, (x, y), radius, (255,255,255), -1)
+    
+    # Create circle overlay with the color
+    circle_overlay = np.zeros_like(line_img_cv, dtype=np.uint8)
+    cv2.circle(circle_overlay, (x, y), radius, avg_color, -1)
+    
+    # Blend only within the circle area
+    mask_bool = (overlay_mask > 0)
+    if color_mode == "median":
+        line_img_cv[mask_bool] = cv2.addWeighted(line_img_cv, 1-alpha, circle_overlay, alpha, 0)[mask_bool]
+    elif color_mode == "swap":
+        line_img_cv[mask_bool] = color_img_cv[mask_bool]
+
+    # Convert back to PIL Image and return
+    return Image.fromarray(line_img_cv)
+
+def draw_random_colored_points(line_img, color_img, num_range=(1,8), radius_range=(16,40), color_mode="median"):
+    # Generate random number of circles based on input range
+    num_circles = np.random.randint(num_range[0], num_range[1] + 1)
+    
+    # Make a copy of line_img to avoid modifying original
+    result_img = line_img.copy()
+    
+    for _ in range(num_circles):
+        # Random coordinates within image bounds
+        x = np.random.randint(0, line_img.size[0])
+        y = np.random.randint(0, line_img.size[1])
+        
+        # Random radius between given range
+        radius = np.random.randint(radius_range[0], radius_range[1] + 1)
+        
+        # Draw the colored point
+        result_img = draw_colored_point(result_img, color_img, x, y, radius, color_mode=color_mode)
+    
+    return result_img

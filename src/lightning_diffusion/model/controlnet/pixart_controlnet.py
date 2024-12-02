@@ -2,7 +2,7 @@ from typing import Any
 import lightning as L
 import torch
 import torch.nn.functional as F
-from diffusers import AutoencoderKL, DDPMScheduler, DPMSolverMultistepScheduler, PixArtTransformer2DModel, PixArtAlphaPipeline, PixArtSigmaPipeline
+from diffusers import AutoencoderKL, DDPMScheduler, DPMSolverMultistepScheduler, PixArtTransformer2DModel, PixArtAlphaPipeline, PixArtSigmaPipeline, StableDiffusionPipeline
 from transformers import T5EncoderModel, T5Tokenizer
 from transformers import CLIPTextModel, CLIPTokenizer
 import numpy as np
@@ -70,7 +70,7 @@ class PixArtControlnetModule(L.LightningModule):
         self.train()
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=1e-5, weight_decay=1e-2)
+        optimizer = torch.optim.AdamW(self.parameters(), lr=1e-4, weight_decay=1e-2)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10000, T_mult=1)
 
         return [optimizer], [{'scheduler': scheduler, 'interval': 'step'}]
@@ -285,3 +285,141 @@ class PixArtControlnetModule(L.LightningModule):
             if not k.startswith("controlnet."):
                 del checkpoint['state_dict'][k]
         
+
+class PixArtControlnetLoRAModule(PixArtControlnetModule):
+    def __init__(self, 
+                 base_model: str = "PixArt-alpha/PixArt-XL-2-512x512",
+                 base_transformer: str = "PixArt-alpha/PixArt-XL-2-512x512",
+                 controlnet_weight: str = None,
+                 gradient_checkpointing: bool = True,
+                 ucg_rate: float = 0.0,
+                 input_perturbation_gamma: float = 0.0,
+                 tokenizer_max_length: int = 120,
+                 noise_offset: float = 0.0,
+                 use_resolution: bool = False,
+                 enable_vb_loss: bool = True,
+                 no_vae: bool = False,
+                 lora_rank: int = 8):
+        super(PixArtControlnetModule, self).__init__()
+        self.input_perturbation_gamma = input_perturbation_gamma
+        self.ucg_rate = ucg_rate
+        self.noise_offset = noise_offset
+        self.enable_vb_loss = enable_vb_loss
+        self.tokenizer_max_length = tokenizer_max_length
+        self.use_resolution = use_resolution
+        self.base_model = base_model
+        self.no_vae = no_vae
+        self.tokenizer = T5Tokenizer.from_pretrained(pretrained_model_name_or_path=base_model,
+                                                       subfolder="tokenizer")
+        self.scheduler = DDPMScheduler.from_pretrained(pretrained_model_name_or_path=base_model,
+                                                       subfolder="scheduler")
+        self.text_encoder = T5EncoderModel.from_pretrained(pretrained_model_name_or_path=base_model,
+                                                          subfolder="text_encoder")
+        self.vae = AutoencoderKL.from_pretrained(pretrained_model_name_or_path=base_model, subfolder="vae")
+        self.transformer = PixArtTransformer2DControlNet.from_pretrained(pretrained_model_name_or_path=base_transformer,
+                                                              use_additional_conditions=use_resolution,
+                                                              subfolder="transformer")
+        if self.no_vae:
+            self.controlnet = PixArtTransformer2DControlNetNoVAEModel.from_transformer(self.transformer, num_layers=13)
+        else:
+            self.controlnet = PixArtTransformer2DControlNetModel.from_transformer(self.transformer, num_layers=13)
+        if controlnet_weight is not None:
+            self.controlnet = load_pytorch_model(ckpt_name=controlnet_weight, model=self.controlnet, ignore_suffix="controlnet")
+        
+        self.vae.requires_grad_(False)
+        self.text_encoder.requires_grad_(False)
+        self.transformer.requires_grad_(False)
+        self.controlnet.requires_grad_(False)
+        self.controlnet.adaln_single.requires_grad_(False)
+        self.controlnet.caption_projection.requires_grad_(False)
+        self.controlnet.pos_embed.requires_grad_(False)
+
+        if gradient_checkpointing:
+            self.transformer.enable_gradient_checkpointing()
+            self.controlnet.enable_gradient_checkpointing()
+
+        lora_config = LoraConfig(r=lora_rank,
+                                    lora_alpha=lora_rank,
+                                    target_modules=["to_q", "to_v", "to_k", "to_out.0"])
+        self.transformer = get_peft_model(self.transformer, lora_config)
+        self.transformer.print_trainable_parameters()
+        self.train()
+
+    def on_save_checkpoint(self, checkpoint: dict[str, Any]) -> None:
+        from diffusers.utils import convert_state_dict_to_diffusers
+        from peft.utils import get_peft_model_state_dict
+        lora_state_dict = get_peft_model_state_dict(self.transformer, adapter_name="default")
+        StableDiffusionPipeline.save_lora_weights(
+                f'{self.trainer.default_root_dir}/lora_weight/step_{self.global_step}',
+                unet_lora_layers=lora_state_dict
+        )
+        # save only unet parameters
+        list_keys = list(checkpoint['state_dict'].keys())
+        for k in list_keys:
+            if not k.startswith("transformer."):
+                del checkpoint['state_dict'][k]
+
+class PixArtControlnetFTModule(PixArtControlnetModule):
+    def __init__(self, 
+                 base_model: str = "PixArt-alpha/PixArt-XL-2-512x512",
+                 base_transformer: str = "PixArt-alpha/PixArt-XL-2-512x512",
+                 controlnet_weight: str = None,
+                 gradient_checkpointing: bool = True,
+                 ucg_rate: float = 0.0,
+                 input_perturbation_gamma: float = 0.0,
+                 tokenizer_max_length: int = 120,
+                 noise_offset: float = 0.0,
+                 use_resolution: bool = False,
+                 enable_vb_loss: bool = True,
+                 no_vae: bool = False):
+        super(PixArtControlnetModule, self).__init__()
+        self.input_perturbation_gamma = input_perturbation_gamma
+        self.ucg_rate = ucg_rate
+        self.noise_offset = noise_offset
+        self.enable_vb_loss = enable_vb_loss
+        self.tokenizer_max_length = tokenizer_max_length
+        self.use_resolution = use_resolution
+        self.base_model = base_model
+        self.no_vae = no_vae
+        self.tokenizer = T5Tokenizer.from_pretrained(pretrained_model_name_or_path=base_model,
+                                                       subfolder="tokenizer")
+        self.scheduler = DDPMScheduler.from_pretrained(pretrained_model_name_or_path=base_model,
+                                                       subfolder="scheduler")
+        self.text_encoder = T5EncoderModel.from_pretrained(pretrained_model_name_or_path=base_model,
+                                                          subfolder="text_encoder")
+        self.vae = AutoencoderKL.from_pretrained(pretrained_model_name_or_path=base_model, subfolder="vae")
+        self.transformer = PixArtTransformer2DControlNet.from_pretrained(pretrained_model_name_or_path=base_transformer,
+                                                              use_additional_conditions=use_resolution,
+                                                              subfolder="transformer")
+        if self.no_vae:
+            self.controlnet = PixArtTransformer2DControlNetNoVAEModel.from_transformer(self.transformer, num_layers=13)
+        else:
+            self.controlnet = PixArtTransformer2DControlNetModel.from_transformer(self.transformer, num_layers=13)
+        if controlnet_weight is not None:
+            self.controlnet = load_pytorch_model(ckpt_name=controlnet_weight, model=self.controlnet, ignore_suffix="controlnet")
+        
+        self.vae.requires_grad_(False)
+        self.text_encoder.requires_grad_(False)
+        self.transformer.requires_grad_(True)
+        self.controlnet.requires_grad_(False)
+        self.controlnet.adaln_single.requires_grad_(False)
+        self.controlnet.caption_projection.requires_grad_(False)
+        self.controlnet.pos_embed.requires_grad_(False)
+
+        if gradient_checkpointing:
+            self.transformer.enable_gradient_checkpointing()
+            self.controlnet.enable_gradient_checkpointing()
+
+        self.train()
+    def configure_optimizers(self):
+        optimizer = torch.optim.AdamW(self.parameters(), lr=1e-4, weight_decay=1e-2)
+        #scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10000, T_mult=1)
+
+        return [optimizer]#, [{'scheduler': scheduler, 'interval': 'step'}]
+    def on_save_checkpoint(self, checkpoint: dict[str, Any]) -> None:
+        self.transformer.save_pretrained(f'{self.trainer.default_root_dir}/transformer_weight/step_{self.global_step}')
+        # save only unet parameters
+        list_keys = list(checkpoint['state_dict'].keys())
+        for k in list_keys:
+            if not k.startswith("transformer."):
+                del checkpoint['state_dict'][k]

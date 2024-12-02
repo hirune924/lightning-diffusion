@@ -10,3 +10,5 @@ from .controlnet.flux_controlnet import *
 from .controlnet.pixart_controlnet import *
 from .inpaint.stable_diffusion_inpaint import *
 from .animate_anyone.animate_anyone import *
+from .animatediff.animatediff import *
+from .cogvideox.cogvideox import *
