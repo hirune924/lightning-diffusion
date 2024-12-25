@@ -80,28 +80,29 @@ class VisualizeVideoCallback(L.Callback):
         self.save_dir = save_dir
         os.makedirs(self.save_dir, exist_ok=True)
 
-    @rank_zero_only
+    #@rank_zero_only
     def on_train_start(self, trainer, pl_module):
         self.generate_and_log(trainer, pl_module)
 
-    @rank_zero_only
-    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
+    #@rank_zero_only
+    def on_train_batch_end(self, trainer, pl_module, outputs,batch, batch_idx):
         if self.by_epoch:
             return
         if (trainer.global_step + 1) % self.interval == 0:
             self.generate_and_log(trainer, pl_module)
 
-    @rank_zero_only
+    #@rank_zero_only
     def on_train_epoch_end(self, trainer, pl_module):
         if self.by_epoch and (trainer.current_epoch + 1) % self.interval == 0:
             self.generate_and_log(trainer, pl_module)
 
+    @rank_zero_only
     def generate_and_log(self, trainer: L.Trainer, pl_module: L.LightningModule):
         videos = pl_module(
             height=self.height,
             width=self.width,
             **self.kwargs)
-        
+
         for idx, v in enumerate(videos):
             if isinstance(v[0], np.ndarray):
                 v = [Image.fromarray(frame) for frame in v]

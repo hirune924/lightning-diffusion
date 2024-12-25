@@ -5,10 +5,12 @@ import torch.nn.functional as F
 from diffusers import AutoencoderKLCogVideoX, CogVideoXDPMScheduler, CogVideoXTransformer3DModel, CogVideoXPipeline
 from transformers import T5EncoderModel, AutoTokenizer
 import numpy as np
-from peft import get_peft_model, LoraConfig, get_peft_model_state_dict
+from peft import get_peft_model, LoraConfig, get_peft_model_state_dict, set_peft_model_state_dict
 from einops import rearrange
 import bitsandbytes as bnb
 from lightning_diffusion.model.cogvideox.utils.utils import prepare_rotary_positional_embeddings
+from diffusers.utils import convert_unet_state_dict_to_peft
+from lightning.pytorch.utilities import rank_zero_only
 
 class CogVideoXModule(L.LightningModule):
     def __init__(self, 
@@ -18,6 +20,7 @@ class CogVideoXModule(L.LightningModule):
                  enable_slicing: bool = True,
                  enable_tiling: bool = True,
                  enable_model_cpu_offload: bool = True,
+                 lora_weight: str = None,
                  lora_rank: int = 128,
                  lora_alpha: int = 128,
                  ):
@@ -56,11 +59,28 @@ class CogVideoXModule(L.LightningModule):
             target_modules=["to_k", "to_q", "to_v", "to_out.0"],
         )
         self.transformer.add_adapter(transformer_lora_config)
+
+        if lora_weight is not None:
+            lora_state_dict = CogVideoXPipeline.lora_state_dict(lora_weight)
+            transformer_state_dict = {
+                f'{k.replace("transformer.", "")}': v for k, v in lora_state_dict.items() if k.startswith("transformer.")
+            }
+            transformer_state_dict = convert_unet_state_dict_to_peft(transformer_state_dict)
+            incompatible_keys = set_peft_model_state_dict(self.transformer, transformer_state_dict, adapter_name="default")
+            self.transformer.load_state_dict(transformer_state_dict, strict=False)
+            if incompatible_keys is not None:
+                # check only for unexpected keys
+                unexpected_keys = getattr(incompatible_keys, "unexpected_keys", None)
+                if unexpected_keys:
+                    print(
+                        f"Loading adapter weights from state_dict led to unexpected keys not found in the model: "
+                        f" {unexpected_keys}. "
+                    )
         # For DeepSpeed training
         self.model_config = self.transformer.module.config if hasattr(self.transformer, "module") else self.transformer.config
         if gradient_checkpointing:
             self.transformer.enable_gradient_checkpointing()
-            self.text_encoder.gradient_checkpointing_enable()
+            #self.text_encoder.gradient_checkpointing_enable()
         self.train()
 
     def configure_optimizers(self):
@@ -82,14 +102,14 @@ class CogVideoXModule(L.LightningModule):
             #torch_dtype=self.dtype
             torch_dtype=torch.bfloat16
         )#.to(self.device)
-
+        pipeline.to(self.device)
         if self.enable_slicing:
             pipeline.vae.enable_slicing()
         if self.enable_tiling:
             pipeline.vae.enable_tiling()
         if self.enable_model_cpu_offload:
-            pipeline.enable_model_cpu_offload()
-        pipeline.set_progress_bar_config(disable=True)
+            pipeline.enable_model_cpu_offload() ### DONT USE THIS FOR DDP TRAINING!!!!!!!
+        pipeline.set_progress_bar_config(disable=False)
         results = []
         for p in prompt:
             vid = pipeline(
@@ -98,7 +118,8 @@ class CogVideoXModule(L.LightningModule):
                 height=height,
                 width=width,
                 max_sequence_length=self.model_config.max_text_seq_length,
-                output_type="pil"
+                output_type="pil",
+                num_inference_steps=50
                 ).frames[0]
             results.append(vid)
 
@@ -171,16 +192,18 @@ class CogVideoXModule(L.LightningModule):
         loss = torch.mean(
                     (weights * (model_pred - latents) ** 2).reshape(batch_size, -1),
                     dim=1,
-                )
+                ).mean()
         self.log("train_loss", loss)
         return loss
     
+
     def on_save_checkpoint(self, checkpoint: dict[str, Any]) -> None:
-        transformer_lora_layers_to_save = get_peft_model_state_dict(self.model)
-        CogVideoXPipeline.save_lora_weights(
-                f'{self.trainer.default_root_dir}/motion_module_weight/step_{self.global_step}',
-                transformer_lora_layers=transformer_lora_layers_to_save,
-            )
+        if self.trainer.is_global_zero:
+            transformer_lora_layers_to_save = get_peft_model_state_dict(self.transformer)
+            CogVideoXPipeline.save_lora_weights(
+                    f'{self.trainer.default_root_dir}/lora_weights/step_{self.global_step}',
+                    transformer_lora_layers=transformer_lora_layers_to_save,
+                )
         list_keys = list(checkpoint['state_dict'].keys())
         for k in list_keys:
             if not k.startswith("transformer"):

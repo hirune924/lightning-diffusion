@@ -427,7 +427,7 @@ class WDSVideoDataset(Dataset):
             wds.WebDataset(self.urls, resampled=True, shardshuffle=True, nodesplitter=wds.split_by_node)
             .shuffle(1000)
             .decode()
-            .map(self.preprocess, handler=wds.warn_and_continue)
+            .map(self.preprocess, handler=wds.ignore_and_continue)#warn_and_continue
             .to_tuple('prompt', 'image', 'video')
             .batched(1, partial=False)
         )
@@ -440,6 +440,8 @@ class WDSVideoDataset(Dataset):
         clip_frames = (target_item['clips'] * video.get_avg_fps()).astype(int)
 
         video_num_frames = clip_frames[1] - clip_frames[0]
+        if video_num_frames < self.max_num_frames:
+            assert False, f"Video {sample['json']['url']} has less than {self.max_num_frames} frames"
         nearest_frame_bucket = min(
             self.frame_buckets, key=lambda x: abs(x - min(video_num_frames, self.max_num_frames))
         )
@@ -449,7 +451,8 @@ class WDSVideoDataset(Dataset):
         elif video_num_frames < self.max_num_frames:
             frame_indices = list(range(clip_frames[0], clip_frames[1]))
         else:
-            frame_indices = list(range(clip_frames[0], clip_frames[1], video_num_frames // self.max_num_frames))
+            #frame_indices = list(range(clip_frames[0], clip_frames[1], video_num_frames // self.max_num_frames))
+            frame_indices = list(range(clip_frames[0], clip_frames[0]+self.max_num_frames))
 
 
         frames = video.get_batch(frame_indices)
@@ -471,6 +474,10 @@ class WDSVideoDataset(Dataset):
         frames = torch.stack([self.video_transforms(frame) for frame in frames_resized], dim=0)
 
         image = frames[:1].clone()
+
+        del video
+        import gc
+        gc.collect()
 
         return {
             "prompt": self.id_token + target_item['text_description'],
@@ -525,6 +532,7 @@ class WDSVideoDataModule(LightningDataModule):
         metadata: str,
         max_num_frames: int = 49,
         id_token: Optional[str] = None,
+        batch_size: int = 1,
         height_buckets: List[int] = None,
         width_buckets: List[int] = None,
         frame_buckets: List[int] = None,
@@ -545,6 +553,7 @@ class WDSVideoDataModule(LightningDataModule):
         self.video_reshape_mode = video_reshape_mode
         self.num_workers = num_workers
         self.epoch_length = epoch_length
+        self.batch_size = batch_size
 
 
     # OPTIONAL, called only on 1 GPU/machine(for download or tokenize)
@@ -568,9 +577,11 @@ class WDSVideoDataModule(LightningDataModule):
         loader = wds.WebLoader(self.dataset, 
                                batch_size=None, 
                                shuffle=False, 
-                               num_workers=self.num_workers)
+                               num_workers=self.num_workers,
+                               persistent_workers=False,
+                               pin_memory=False)
         # Unbatch, shuffle between workers, then rebatch.
-        loader = loader.unbatched().shuffle(1000).batched(1)
+        loader = loader.unbatched().shuffle(10).batched(self.batch_size)
         # Since we are using resampling, the dataset is infinite; set an artificial epoch size.
         loader = loader.with_epoch(self.epoch_length)
         return loader
